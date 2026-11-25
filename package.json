@@ -75,7 +75,8 @@
     "test:issue137-work-metadata-visibility": "node --import tsx scripts/test-issue137-work-metadata-visibility.ts",
     "test:child84-account-delete-cache": "node --import tsx scripts/test-child84-account-delete-cache.ts",
     "test:child84-search-bookmarks": "node --import tsx scripts/test-child84-search-bookmarked-works.ts",
-    "test:popularity-ingest-guard": "node --import tsx scripts/test-popularity-ingest-guard.ts"
+    "test:popularity-ingest-guard": "node --import tsx scripts/test-popularity-ingest-guard.ts",
+    "test:reader-author-href": "node --import tsx scripts/test-reader-author-href.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
