@@ -152,3 +152,10 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/series/[seriesId]/translation-permission/route.ts` | POST | `:68` | `:95`, `:116` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/series/reaction/route.ts` | POST,DELETE | `:18` | `:107`, `:194` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/word-explanations/route.ts` | POST | `:180` | `:180`、`:200` | admin あり | ログイン必須の部分あり。私用ライブラリは `resolvePrivateLibraryTranslationAccess`、作品は `resolveEpisodeTranslationAccess` で判定してから admin で読む。問題の疑いなし（判定関数の中身は見ていない） |
+
+## 要確認のまとめ（2026-11-25）
+1. migration に RLS 有効化の文が無いテーブル5件（`author_follows`、`author_profile_likes`、`reader_card_likes`、`bgm_library_favorites`、`nemo_generation_queue`）。うち2件はブラウザから直接読んでいる。本番の RLS・ポリシー・権限を読み取りで確かめ、migration に残すかを決める必要がある（本番の確認はこの作業の範囲外）。
+2. `private_library_word_explanations` を今も使っているか。
+3. `src/app/api/pdf-assets/[kind]/[name]/route.ts` で `kind` が `__proto__` などのとき 404 でなく 500 になりうる（`node -e` で `path.join` が `ERR_INVALID_ARG_TYPE` を投げることを確かめた。route そのものは動かしていない）。読める範囲は広がらない。
+4. 軽いもの: `account/email/prepare-signup` と `popularity/events` の回数制限、`ai-usage` の利用者の決め方（中身を見ていない）。
+- 廃止済みの AI 小説生成のテーブル（`generated_story_*`、`time_fit_*`）が残っている。閉じてはいるので危険ではないが、残すかはオーナー判断。
