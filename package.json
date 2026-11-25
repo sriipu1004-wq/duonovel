@@ -84,7 +84,8 @@
     "test:nemo-pronunciation-dictionary": "node --import tsx scripts/test-nemo-pronunciation-dictionary.ts",
     "test:ja-search-discovery": "node --import tsx scripts/test-ja-search-discovery.ts",
     "test:bgm-settings": "node --import tsx scripts/test-bgm-settings.ts",
-    "test:effect-settings": "node --import tsx scripts/test-effect-settings.ts"
+    "test:effect-settings": "node --import tsx scripts/test-effect-settings.ts",
+    "test:auth-operator": "node --import tsx scripts/test-auth-operator.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
