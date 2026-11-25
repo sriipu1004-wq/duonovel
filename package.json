@@ -126,7 +126,8 @@
     "test:translation-reservation-server": "node --import tsx scripts/test-translation-reservation-server.ts",
     "test:public-translation-credits-server": "node --import tsx scripts/test-public-translation-credits-server.ts",
     "test:billing-server": "node --import tsx scripts/test-billing-server.ts",
-    "test:ai-usage-server": "node --import tsx scripts/test-ai-usage-server.ts"
+    "test:ai-usage-server": "node --import tsx scripts/test-ai-usage-server.ts",
+    "test:episode-translation-server": "node --import tsx scripts/test-episode-translation-server.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
