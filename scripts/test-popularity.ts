@@ -120,7 +120,7 @@ async function main() {
       ["order", "bucket_date", { ascending: true }],
       ["range", 0, 999],
     ]);
-    assert.deepEqual(state.log[1].at(-1), ["range", 1000, 1999]);
+    assert.deepEqual((state.log as unknown[][])[1].at(-1), ["range", 1000, 1999]);
     // A page error throws (rows read so far are not returned).
     state.pages = [{ data: null, error: { message: "down" } }];
     await assert.rejects(mod.fetchSeriesPopularityDataset(["a"]), /^Error: series_popularity_daily read failed: down$/);
