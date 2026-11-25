@@ -123,3 +123,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/library/import/start/route.ts` | POST | `:74` | `:87` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
 | `src/app/api/library/progress/route.ts` | POST | `:42` | `:51` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
 | `src/app/api/library/translations/[chapterId]/route.ts` | GET | `:20` | 自動抽出で見つからず | admin あり | `resolvePrivateLibraryTranslationAccess` で所有者を判定してから admin で読む |
+| `src/app/api/library/translations/generate/route.ts` | POST | `:193` | `:264` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/library/works/[workId]/glossary/[termId]/route.ts` | DELETE | `:13` | `:26` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/library/works/[workId]/glossary/route.ts` | POST | `:45` | `:57` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/library/works/[workId]/route.ts` | PATCH,DELETE | `:33` | `:49`, `:79` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/pdf-assets/[kind]/[name]/route.ts` | GET | 見つからず | 自動抽出で見つからず | admin なし | 未認証の静的ファイル（pdfjs の cmaps・fonts）。名前は `^[A-Za-z0-9._-]+$` で `/` を通さない。要確認（軽）: `kind` を `ASSET_FOLDERS[kind]` で引くため `__proto__`・`toString` などで `path.join` に文字列以外が渡り、try の外なので 404 でなく 500 になりうる（読める範囲は広がらない） |
