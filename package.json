@@ -99,7 +99,8 @@
     "test:reader-card-like": "node --import tsx scripts/test-reader-card-like.ts",
     "test:bgm-library": "node --import tsx scripts/test-bgm-library.ts",
     "test:translation-reader-preference": "node --import tsx scripts/test-translation-reader-preference.ts",
-    "test:bilingual-session-preference": "node --import tsx scripts/test-bilingual-session-preference.ts"
+    "test:bilingual-session-preference": "node --import tsx scripts/test-bilingual-session-preference.ts",
+    "test:loading-feedback": "node --import tsx scripts/test-loading-feedback.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

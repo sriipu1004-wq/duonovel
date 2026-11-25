@@ -31,10 +31,15 @@
 | `src/lib/bgm/bgmLibrary.ts` | `scripts/test-bgm-library.ts` | `test:bgm-library` | 2026-11-25 | PASS、tsc PASS（モック）。取得の失敗は console.error に出して空の一覧を返す |
 | `src/lib/playback/translationReaderPreference.ts` | `scripts/test-translation-reader-preference.ts` | `test:translation-reader-preference` | 2026-11-25 | PASS、tsc PASS（偽の window） |
 | `src/lib/translation/bilingualSessionPreference.ts` | `scripts/test-bilingual-session-preference.ts` | `test:bilingual-session-preference` | 2026-11-25 | PASS、tsc PASS（偽の window） |
+| `src/lib/client/loadingFeedback.ts` | `scripts/test-loading-feedback.ts` | `test:loading-feedback` | 2026-11-25 | PASS、tsc PASS（偽の window） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
+
+- `src/lib/recording/nemoPlaybackCompatibility.ts`（時刻計算の関数。fetch を使う関数は後回し）
+- `src/lib/popularityEvents.ts`（`window`・fetch の差し替えが要る）
+- `src/lib/playLogs.ts`（Supabase を引数で受ける）
 
 ## 後回し（純粋でない）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
