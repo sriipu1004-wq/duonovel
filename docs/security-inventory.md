@@ -98,3 +98,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/account/display-name/check/route.ts` | POST | `:54` | 自動抽出で見つからず | admin あり | ログインの状態を見る。名前の重複確認 |
 | `src/app/api/account/email/check/route.ts` | POST | 見つからず | 自動抽出で見つからず | admin なし | 未認証で使える形式チェックだけ。メールアドレスの有無は返さない（コメント `:57-60`）。問題の疑いなし |
 | `src/app/api/account/email/prepare-signup/route.ts` | POST | 見つからず | 自動抽出で見つからず | admin なし | 未認証。登録前の準備。コメント `:57` 付近で第三者に存在を漏らさない方針を書いている。中身の admin API の呼び方は細かく見ていない。要確認（軽）: 回数制限の有無 |
+| `src/app/api/account/google-consent/route.ts` | POST | `:59` | `:92` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/account/profile/route.ts` | POST | `:38` | 自動抽出で見つからず | admin あり | ログイン必須。本人のプロフィール |
+| `src/app/api/ai-usage/route.ts` | GET | `:10` | 自動抽出で見つからず | admin なし | `getAiUsageSnapshot(request)` の中で利用者を決める（`src/lib/aiUsage/aiUsage.server.ts`）。中身は見ていない。要確認（軽） |
+| `src/app/api/authors/follow/route.ts` | POST,DELETE | `:15` | `:172` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/authors/like/route.ts` | POST,DELETE | `:15` | `:47`, `:109` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
