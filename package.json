@@ -119,7 +119,8 @@
     "test:private-media-source-access": "node --import tsx scripts/test-private-media-source-access.ts",
     "test:registration-gate-server": "node --import tsx scripts/test-registration-gate-server.ts",
     "test:private-library-import-errors": "node --import tsx scripts/test-private-library-import-errors.ts",
-    "test:sync-public-user-profile": "node --import tsx scripts/test-sync-public-user-profile.ts"
+    "test:sync-public-user-profile": "node --import tsx scripts/test-sync-public-user-profile.ts",
+    "test:official-author-grant-server": "node --import tsx scripts/test-official-author-grant-server.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

@@ -51,11 +51,11 @@
 | `src/lib/auth/registrationGate.server.ts` | `scripts/test-registration-gate-server.ts` | `test:registration-gate-server` | 2026-11-25 | PASS、tsc PASS（next/headers は差し替え） |
 | `src/lib/library/privateLibraryImportServer.ts` | `scripts/test-private-library-import-errors.ts` | `test:private-library-import-errors` | 2026-11-25 | PASS、tsc PASS。1日の上限の文言に、廃止済みの「AI生成」が残っている（ほかの料金の説明は「公開作品のAI翻訳解放・個人本棚への取り込み」。文言だけの差で、記録だけ）。上限の判定だけ大文字・小文字を区別する |
 | `src/lib/auth/syncPublicUserProfile.ts` | `scripts/test-sync-public-user-profile.ts` | `test:sync-public-user-profile` | 2026-11-25 | PASS、tsc PASS（fetch は差し替え） |
+| `src/lib/auth/officialAuthorGrant.server.ts` | `scripts/test-official-author-grant-server.ts` | `test:official-author-grant-server` | 2026-11-25 | PASS、tsc PASS（admin クライアントは差し替え） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
-- `src/lib/auth/officialAuthorGrant.server.ts`（判定の本体 `officialAuthorGrant.ts` はテスト済み。ここは admin の読み取りだけ）
 - `src/lib/library/privateLibraryTranslationServer.ts`
 - `src/lib/translation/humanTranslationServer.ts`
 - `src/lib/translation/translationReservationServer.ts`
