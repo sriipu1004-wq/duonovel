@@ -33,12 +33,12 @@
 | `src/lib/translation/bilingualSessionPreference.ts` | `scripts/test-bilingual-session-preference.ts` | `test:bilingual-session-preference` | 2026-11-25 | PASS、tsc PASS（偽の window） |
 | `src/lib/client/loadingFeedback.ts` | `scripts/test-loading-feedback.ts` | `test:loading-feedback` | 2026-11-25 | PASS、tsc PASS（偽の window） |
 | `src/lib/recording/nemoPlaybackCompatibility.ts` | `scripts/test-nemo-playback-compatibility.ts` | `test:nemo-playback-compatibility` | 2026-11-25 | PASS、tsc PASS（fetch は差し替え。ネットワークは使っていない） |
+| `src/lib/popularityEvents.ts` | `scripts/test-popularity-events.ts` | `test:popularity-events` | 2026-11-25 | PASS、tsc PASS（偽の window・fetch） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 
-- `src/lib/popularityEvents.ts`（`window`・fetch の差し替えが要る）
 - `src/lib/playLogs.ts`（Supabase を引数で受ける）
 
 ## 後回し（純粋でない）
