@@ -22,10 +22,10 @@
 | `src/lib/recording/audioUploadServerValidation.ts` | `scripts/test-audio-upload-server-validation.ts` | `test:audio-upload-server-validation` | 2026-11-25 | PASS、tsc PASS。拡張子・MIME が表に無いと照合をしない（例 `a.bin`＋`audio/x-custom` の WAV は通る） |
 | `src/lib/recording/nemoWav.ts` | `scripts/test-nemo-wav.ts` | `test:nemo-wav` | 2026-11-25 | PASS、tsc PASS（16bit の合成 PCM で確認） |
 | `src/lib/library/zipBook.ts` | `scripts/test-zip-book.ts` | `test:zip-book` | 2026-11-25 | PASS、tsc PASS。展開前の大きさの上限は ZIP の目次に書かれた値で見る（目次の値が偽のときの挙動は確かめていない） |
+| `src/lib/recording/humanRecordingAlignment.ts` | `scripts/test-human-recording-alignment.ts` | `test:human-recording-alignment` | 2026-11-25 | PASS、tsc PASS（1文ずつのセグメントの場合だけ固定。下の不具合の疑いを参照） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
-- `src/lib/recording/humanRecordingAlignment.ts`
 - `src/lib/seo/currentSearchDiscovery.ts`（今のテストはソースの文字列を見るだけ）
 - `src/lib/effects/effectTextLayout.ts`
 
@@ -45,3 +45,7 @@
   - 内容: 間（ポーズ）の無音を、ビット深度にかかわらず 0 のバイトで作る（`createSilencePcm`）。16bit なら 0 が無音で正しいが、8bit の PCM は 128 が無音なので、8bit の WAV をつなぐと間が最大の負の値になり、雑音になりうる。
   - 再現: 8bit・モノラル・8Hz の合成 WAV（データ `[128, 128]`）に `pauseAfterMs: 250` を付けてつなぐと、データが `[128, 128, 0, 0]` になる。
   - 影響（推定）: Nemo・Aivis の出力が 16bit なら影響は無い。出力のビット深度は確かめていない。今の挙動の 16bit 部分だけをテストで固定した。
+- `src/lib/recording/humanRecordingAlignment.ts` の `alignHumanRecordingToBodyOrThrow`（2026-11-25、テストは足していない）
+  - 内容: 文字起こしの1つのセグメントに本文の2文以上が入っていると、その中の文がほとんど対応付かない。単語ごとの時刻を渡しても同じ。
+  - 再現: 本文 `吾輩は猫である。名前はまだ無い。\n\nどこで生れたかとんと見当がつかぬ。`、セグメント `[0-3秒「吾輩は猫である。名前はまだ無い。」, 3.2-6秒「どこで生れたかとんと見当がつかぬ。」]` → 3文のうち1文だけが対応付き、`human_alignment_insufficient` で止まる（1文ずつのセグメントなら3文とも対応付く）。
+  - 影響（推定）: Whisper などの文字起こしは、1つのセグメントに複数の文を入れることが多い。そのため人の朗読の時刻合わせが、実際の録音では失敗しやすい可能性がある。実際の録音・文字起こしでは確かめていない。短い合成の例での観察で、本番の失敗率は分からない。
