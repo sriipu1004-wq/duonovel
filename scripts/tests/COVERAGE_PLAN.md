@@ -57,11 +57,11 @@
 | `src/lib/translation/translationReservationServer.ts` | `scripts/test-translation-reservation-server.ts` | `test:translation-reservation-server` | 2026-11-25 | PASS、tsc PASS（admin は偽物を渡す） |
 | `src/lib/translation/publicTranslationCredits.server.ts` | `scripts/test-public-translation-credits-server.ts` | `test:public-translation-credits-server` | 2026-11-25 | PASS、tsc PASS（Supabase と AI 利用量のモジュールは差し替え） |
 | `src/lib/billing/billing.server.ts` | `scripts/test-billing-server.ts` | `test:billing-server` | 2026-11-25 | PASS、tsc PASS（admin クライアントと Stripe クライアントは偽物。Stripe・DB には接続していない） |
+| `src/lib/aiUsage/aiUsage.server.ts` | `scripts/test-ai-usage-server.ts` | `test:ai-usage-server` | 2026-11-25 | PASS、tsc PASS（差し替え。環境変数は偽の値）。サブスク利用者の単語解説は日次回数を数えず月間予算だけを使う。`subscriber_until` が空なら期限なしのサブスク扱い |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
-- `src/lib/aiUsage/aiUsage.server.ts`
 
 ## 後回し（純粋でない）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
