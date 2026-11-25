@@ -63,12 +63,12 @@
 | `src/lib/recording/privateMediaProxy.ts` | `scripts/test-private-media-proxy.ts` | `test:private-media-proxy` | 2026-11-25 | PASS、tsc PASS（privateMediaStream は差し替え。環境変数は偽の値）。環境変数は呼び出しのたびに読み、無ければ undefined のまま渡す（503 にするのは privateMediaStream 側） |
 | `src/lib/legacyAttribution.server.ts` | `scripts/test-legacy-attribution-server.ts` | `test:legacy-attribution-server` | 2026-11-25 | PASS、tsc PASS（officialAuthorGrant.server は差し替え）。記録が無い・形が違うときは公式アカウントの照会をしない |
 | `src/lib/updates/followingUpdates.server.ts` | `scripts/test-following-updates-server.ts` | `test:following-updates-server` | 2026-11-25 | PASS、tsc PASS（Supabase・next/headers・作品一覧のキャッシュ・R18 設定・地域制限・`runFollowingUpdates` は差し替え。各読み出しの組み立てだけを固定）。既読の印（play_logs）が読めないときは null で続ける。話数は小数を切り捨てる |
+| `src/lib/translation/prepareEpisodeTranslationGeneration.ts` | `scripts/test-prepare-episode-translation-generation.ts` | `test:prepare-episode-translation-generation` | 2026-11-25 | PASS、tsc PASS（Supabase・next/headers・閲覧権の判定・登録ゲート・シリーズの一貫性の読み出しは差し替え。OpenAI には接続していない）。状態が `failed` のキャッシュ行は生成へ進む。一時停止（`EPISODE_TRANSLATION_ENABLED`）はモジュールの読み込み時に決まるので固定していない |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 2026-11-25（夕）の再計算で残ったもの（行数の少ない順。`supabaseClient`・`supabase/client`・`supabase/proxy` はクライアントを作るだけなので外した）:
-- `src/lib/translation/prepareEpisodeTranslationGeneration.ts`
 - `src/lib/recording/audioPlaybackNormalization.ts`
 - `src/lib/translation/seriesTranslationGlossaryAutoServer.ts`
 - `src/lib/translation/publicWorkTranslations.ts`

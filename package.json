@@ -131,7 +131,8 @@
     "test:recording-entry": "node --import tsx scripts/test-recording-entry.ts",
     "test:private-media-proxy": "node --import tsx scripts/test-private-media-proxy.ts",
     "test:legacy-attribution-server": "node --import tsx scripts/test-legacy-attribution-server.ts",
-    "test:following-updates-server": "node --import tsx scripts/test-following-updates-server.ts"
+    "test:following-updates-server": "node --import tsx scripts/test-following-updates-server.ts",
+    "test:prepare-episode-translation-generation": "node --import tsx scripts/test-prepare-episode-translation-generation.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
