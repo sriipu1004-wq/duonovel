@@ -53,11 +53,11 @@
 | `src/lib/auth/syncPublicUserProfile.ts` | `scripts/test-sync-public-user-profile.ts` | `test:sync-public-user-profile` | 2026-11-25 | PASS、tsc PASS（fetch は差し替え） |
 | `src/lib/auth/officialAuthorGrant.server.ts` | `scripts/test-official-author-grant-server.ts` | `test:official-author-grant-server` | 2026-11-25 | PASS、tsc PASS（admin クライアントは差し替え） |
 | `src/lib/library/privateLibraryTranslationServer.ts` | `scripts/test-private-library-translation-access.ts` | `test:private-library-translation-access` | 2026-11-25 | PASS、tsc PASS（Supabase の server クライアントは差し替え） |
+| `src/lib/translation/humanTranslationServer.ts` | `scripts/test-human-translation-server.ts` | `test:human-translation-server` | 2026-11-25 | PASS、tsc PASS（差し替え）。`resolveHumanTranslationContext` は `episodeTranslationServer` の判定に頼るので、今回は固定していない |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
-- `src/lib/translation/humanTranslationServer.ts`
 - `src/lib/translation/translationReservationServer.ts`
 - `src/lib/translation/publicTranslationCredits.server.ts`
 - `src/lib/billing/billing.server.ts`
