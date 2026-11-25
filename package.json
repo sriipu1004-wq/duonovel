@@ -129,7 +129,8 @@
     "test:ai-usage-server": "node --import tsx scripts/test-ai-usage-server.ts",
     "test:episode-translation-server": "node --import tsx scripts/test-episode-translation-server.ts",
     "test:recording-entry": "node --import tsx scripts/test-recording-entry.ts",
-    "test:private-media-proxy": "node --import tsx scripts/test-private-media-proxy.ts"
+    "test:private-media-proxy": "node --import tsx scripts/test-private-media-proxy.ts",
+    "test:legacy-attribution-server": "node --import tsx scripts/test-legacy-attribution-server.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

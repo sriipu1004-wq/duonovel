@@ -61,12 +61,12 @@
 | `src/lib/translation/episodeTranslationServer.ts` | `scripts/test-episode-translation-server.ts` | `test:episode-translation-server` | 2026-11-25 | PASS、tsc PASS（差し替え）。地域制限は作品の作者本人にもかかる（作者でも、制限された国からは本文・翻訳を読めない）。今の挙動として固定 |
 | `src/lib/recording/recordingEntry.ts` | `scripts/test-recording-entry.ts` | `test:recording-entry` | 2026-11-25 | PASS、tsc PASS（Supabase の server クライアント・next/headers・next/navigation は差し替え）。作品の取得はログインの判定より先なので、未ログインでも作品が無ければ not found になる。題名は前後の空白を取らずにそのまま返す |
 | `src/lib/recording/privateMediaProxy.ts` | `scripts/test-private-media-proxy.ts` | `test:private-media-proxy` | 2026-11-25 | PASS、tsc PASS（privateMediaStream は差し替え。環境変数は偽の値）。環境変数は呼び出しのたびに読み、無ければ undefined のまま渡す（503 にするのは privateMediaStream 側） |
+| `src/lib/legacyAttribution.server.ts` | `scripts/test-legacy-attribution-server.ts` | `test:legacy-attribution-server` | 2026-11-25 | PASS、tsc PASS（officialAuthorGrant.server は差し替え）。記録が無い・形が違うときは公式アカウントの照会をしない |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 2026-11-25（夕）の再計算で残ったもの（行数の少ない順。`supabaseClient`・`supabase/client`・`supabase/proxy` はクライアントを作るだけなので外した）:
-- `src/lib/legacyAttribution.server.ts`
 - `src/lib/updates/followingUpdates.server.ts`
 - `src/lib/translation/prepareEpisodeTranslationGeneration.ts`
 - `src/lib/recording/audioPlaybackNormalization.ts`
