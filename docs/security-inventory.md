@@ -113,3 +113,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/episode-translations/unlock/route.ts` | POST | `:58` | 自動抽出で見つからず | admin あり | 同上の判定の後、関数で解放する |
 | `src/app/api/human-translations/[translationId]/publish/route.ts` | POST | `:27` | `:31` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/human-translations/[translationId]/route.ts` | GET,PATCH | `:28` | `:88` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/human-translations/[translationId]/withdraw/route.ts` | POST | `:14` | `:25` | admin あり | ログイン必須。`translator_user_id` が本人の行だけを更新する。問題の疑いなし |
+| `src/app/api/human-translations/draft/route.ts` | POST | `:19` | 自動抽出で見つからず | admin あり | `resolveHumanTranslationContext` と登録の確認（`registrationBlocked`）。下書きの所有者は context の利用者 |
+| `src/app/api/human-translations/episode/[episodeId]/route.ts` | GET | `:16` | 自動抽出で見つからず | admin あり | `resolveHumanTranslationContext` で閲覧の可否を決める。中身は見ていない |
+| `src/app/api/library/import-txt/route.ts` | POST | `:116` | `:125` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
+| `src/app/api/library/import/[workId]/complete/route.ts` | POST | `:14` | `:23` | admin なし | ログイン必須。RPC（`auth.uid()` で本人に限る SECURITY DEFINER 関数、2節）を利用者の権限で呼ぶ。問題の疑いなし |
