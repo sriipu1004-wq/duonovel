@@ -82,7 +82,8 @@
     "test:search-saved-filters": "node --import tsx scripts/test-search-saved-filters.ts",
     "test:segment-japanese-episode": "node --import tsx scripts/test-segment-japanese-episode.ts",
     "test:nemo-pronunciation-dictionary": "node --import tsx scripts/test-nemo-pronunciation-dictionary.ts",
-    "test:ja-search-discovery": "node --import tsx scripts/test-ja-search-discovery.ts"
+    "test:ja-search-discovery": "node --import tsx scripts/test-ja-search-discovery.ts",
+    "test:bgm-settings": "node --import tsx scripts/test-bgm-settings.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
