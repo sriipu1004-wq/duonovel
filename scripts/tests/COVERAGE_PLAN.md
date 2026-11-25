@@ -75,6 +75,7 @@
 | `src/lib/og/ogFontCoverage.generated.ts` | `scripts/test-og-font-coverage-generated.ts` | `test:og-font-coverage-generated` | 2026-11-25 | PASS、tsc PASS。同梱の4つのサブセットフォント（`src/assets/og-fonts/`）の文字表（cmap、形式4・12）をテストの中で読み、その和集合と範囲表が一致することを固定（6488字）。範囲は並び順・重なりなし・隣接は結合済み |
 | `src/lib/recording/humanRecordingPublish.ts` | `scripts/test-human-recording-publish.ts` | `test:human-recording-publish` | 2026-11-25 | PASS、tsc PASS（admin の DB と Storage・書き込みの境界・音声の変換・文字起こし・時刻合わせ・H1 の RPC・後片付け・バケットの確認はすべて差し替え。Storage・ffmpeg・文字起こしには接続していない）。公開のつもりで、自分の非公開・状態不明の行がある話に上げると、メディアを作る前に止める。途中の失敗でも上げた物は消さない（コードの方針どおり） |
 | `src/lib/recording/nemoGenerationQueue.ts` | `scripts/test-nemo-generation-queue.ts` | `test:nemo-generation-queue` | 2026-11-25 | PASS、tsc PASS（admin クライアントは偽 DB）。本文のハッシュは本物の `buildNemoChunks` の結果から計算して比べるので、chunk の中身（上の不具合の疑い）は固定していない。`is_public` が null の録音は公開扱い。`nemoChunking` を直すと全話のハッシュが変わり、全話が「本文が変わった」として再生成の待ち行列に入る（推定） |
+| `src/lib/recording/nemoClient.ts` | `scripts/test-nemo-client.ts` | `test:nemo-client` | 2026-11-25 | PASS、tsc PASS（fetch はプロセスの中の偽物。エンジンには接続していない）。エンジンの URL にパスがあっても捨てる（`/audio_query` は絶対パス）。数値の上下限で丸め、NaN は送らない |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
@@ -84,7 +85,7 @@
 
 ## 後回し（純粋でない）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
-- `src/lib/recording/aivisClient.ts`、`src/lib/recording/nemoClient.ts`（ネットワーク）
+- `src/lib/recording/aivisClient.ts`（ネットワーク）
 
 ## 不具合の疑い
 - `src/lib/recording/nemoChunking.ts` の `buildNemoChunks`（2026-11-25、テストは足していない）

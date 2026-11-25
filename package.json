@@ -143,7 +143,8 @@
     "test:public-read": "node --import tsx scripts/test-public-read.ts",
     "test:og-font-coverage-generated": "node --import tsx scripts/test-og-font-coverage-generated.ts",
     "test:human-recording-publish": "node --import tsx scripts/test-human-recording-publish.ts",
-    "test:nemo-generation-queue": "node --import tsx scripts/test-nemo-generation-queue.ts"
+    "test:nemo-generation-queue": "node --import tsx scripts/test-nemo-generation-queue.ts",
+    "test:nemo-client": "node --import tsx scripts/test-nemo-client.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
