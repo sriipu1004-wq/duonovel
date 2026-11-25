@@ -97,7 +97,8 @@
     "test:author-follow": "node --import tsx scripts/test-author-follow.ts",
     "test:author-profile-like": "node --import tsx scripts/test-author-profile-like.ts",
     "test:reader-card-like": "node --import tsx scripts/test-reader-card-like.ts",
-    "test:bgm-library": "node --import tsx scripts/test-bgm-library.ts"
+    "test:bgm-library": "node --import tsx scripts/test-bgm-library.ts",
+    "test:translation-reader-preference": "node --import tsx scripts/test-translation-reader-preference.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

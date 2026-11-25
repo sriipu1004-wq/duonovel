@@ -29,11 +29,12 @@
 | `src/lib/authorProfileLike.ts` | `scripts/test-author-profile-like.ts` | `test:author-profile-like` | 2026-11-25 | PASS、tsc PASS（モック） |
 | `src/lib/readerCardLike.ts` | `scripts/test-reader-card-like.ts` | `test:reader-card-like` | 2026-11-25 | PASS、tsc PASS（モック） |
 | `src/lib/bgm/bgmLibrary.ts` | `scripts/test-bgm-library.ts` | `test:bgm-library` | 2026-11-25 | PASS、tsc PASS（モック）。取得の失敗は console.error に出して空の一覧を返す |
+| `src/lib/playback/translationReaderPreference.ts` | `scripts/test-translation-reader-preference.ts` | `test:translation-reader-preference` | 2026-11-25 | PASS、tsc PASS（偽の window） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
-- `src/lib/playback/translationReaderPreference.ts`、`src/lib/translation/bilingualSessionPreference.ts`（`window` を差し替えればテストできる）
+- `src/lib/translation/bilingualSessionPreference.ts`（`window` を差し替えればテストできる）
 
 ## 後回し（純粋でない）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
