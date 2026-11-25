@@ -44,6 +44,7 @@
 | `src/lib/rights/regionRestriction.server.ts` | `scripts/test-region-restriction-server.ts` | `test:region-restriction-server` | 2026-11-25 | PASS、tsc PASS（admin クライアント・next/headers・next/navigation はプロセスの中で差し替え。DB には接続していない）。既存の `test:region-restriction` はこのファイルの文字列を見るだけだった |
 | `src/lib/contentRatingServer.ts` | `scripts/test-content-rating-server.ts` | `test:content-rating-server` | 2026-11-25 | PASS、tsc PASS（Supabase の server・admin クライアントはプロセスの中で差し替え）。R18 は本人が表示を選び、かつ年齢確認済みのときだけ表示 |
 | `src/lib/auth/requireLoggedInUser.ts` | `scripts/test-require-logged-in-user.ts` | `test:require-logged-in-user` | 2026-11-25 | PASS、tsc PASS（差し替え）。5行のラッパー `requireOfficialAccount.ts` も同じテストで固定した。名前は「公式アカウント」だが、今はログインしているかだけを見る（`/write` の layout が使う。投稿をログイン利用者に開いているのが意図なら名前だけの問題。記録だけ） |
+| `src/lib/auth/requireOwnedSeries.ts` | `scripts/test-require-owned-series.ts` | `test:require-owned-series` | 2026-11-25 | PASS、tsc PASS（差し替え）。所有者でないときも「ログインへ移動」になる（403 や not found ではない） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
