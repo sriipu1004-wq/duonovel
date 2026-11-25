@@ -80,7 +80,8 @@
     "test:audio-upload-policy": "node --import tsx scripts/test-audio-upload-policy.ts",
     "test:nemo-regeneration-diff": "node --import tsx scripts/test-nemo-regeneration-diff.ts",
     "test:search-saved-filters": "node --import tsx scripts/test-search-saved-filters.ts",
-    "test:segment-japanese-episode": "node --import tsx scripts/test-segment-japanese-episode.ts"
+    "test:segment-japanese-episode": "node --import tsx scripts/test-segment-japanese-episode.ts",
+    "test:nemo-pronunciation-dictionary": "node --import tsx scripts/test-nemo-pronunciation-dictionary.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
