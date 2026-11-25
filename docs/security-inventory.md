@@ -25,3 +25,8 @@
 | `public.generated_story_translation_logs` | `20260810204500_add_generated_story_translations.sql:61` | 0 | なし | AI 小説生成（廃止済み）の名残 | 意図して閉じている（推定）。使っていないテーブルを残すかはオーナー判断 |
 | `public.generated_story_translations` | `20260810204500_add_generated_story_translations.sql:60` | 0 | `src/app/api/word-explanations/route.ts` [admin] | 同上 | 意図して閉じている（推定） |
 | `public.libread_billing_customers` | `20260829120000_add_stripe_subscriptions.sql:37` | 0 | `src/app/api/billing/webhook/route.ts` [admin]、`src/lib/billing/billing.server.ts` [admin] | Stripe の顧客の対応表。サーバーだけ | 意図して閉じている（推定） |
+| `public.libread_billing_subscriptions` | `20260829120000_add_stripe_subscriptions.sql:38` | 0 | `src/lib/billing/billing.server.ts` [admin] | 購読の状態。サーバーだけ | 意図して閉じている（推定） |
+| `public.libread_daily_ai_action_logs` | `20260827123000_add_ai_action_quotas_and_entitlements.sql:38` | 0 | なし（`reserve_libread_daily_ai_action` などの関数から。例 `20260827123000_add_ai_action_quotas_and_entitlements.sql:125`） | AI の利用回数の記録 | 意図して閉じている（推定） |
+| `public.libread_stripe_webhook_events` | `20260829120000_add_stripe_subscriptions.sql:39` | 0 | `src/app/api/billing/webhook/route.ts` [admin] | webhook の重複防止 | 意図して閉じている（推定） |
+| `public.libread_subscriber_monthly_ai_reservations` | `20260829120000_add_stripe_subscriptions.sql:69` | 0 | なし（関数から。`20260829120000_add_stripe_subscriptions.sql:154`） | 購読者の月の AI 予算 | 意図して閉じている（推定） |
+| `public.libread_user_entitlements` | `20260827123000_add_ai_action_quotas_and_entitlements.sql:13` | 0 | `src/lib/aiUsage/aiUsage.server.ts`、`src/lib/auth/officialAccount.server.ts`、`src/lib/billing/billing.server.ts`（いずれも [admin]） | 利用権。サーバーだけ | 意図して閉じている（推定） |
