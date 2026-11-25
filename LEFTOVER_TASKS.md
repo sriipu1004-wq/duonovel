@@ -25,7 +25,7 @@ LIB read 固有の制約（全項目共通）:
 - 追加: 2026-11-08
 
 ## LT-002｜毎週・進行中
-- 次の一歩: `scripts/tests/COVERAGE_PLAN.md` の「候補」の先頭（`billing/billing.server.ts`）から続ける。済み50件、不具合の疑い3件（nemoChunking の重複読み上げ、nemoWav の 8bit の無音、humanRecordingAlignment の複数文セグメント）。
+- 次の一歩: `scripts/tests/COVERAGE_PLAN.md` の「候補」の先頭（`aiUsage/aiUsage.server.ts`）から続ける。済み51件、不具合の疑い3件（nemoChunking の重複読み上げ、nemoWav の 8bit の無音、humanRecordingAlignment の複数文セグメント）。
 - 種類: テスト追加（繰り返し型）
 - 内容: テストの無いモジュールを1つずつ選び、今の挙動を固定するテストを足す。
   - 優先する対象: `src/lib/` の純粋な関数（入力から出力が決まるもの）
