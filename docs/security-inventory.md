@@ -148,3 +148,7 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/recordings/upload-check/route.ts` | POST | `:16` | 自動抽出で見つからず | admin なし | ログイン必須。中身は音声の検査だけで DB の所有物を触らない（見た範囲）。問題の疑いなし |
 | `src/app/api/series/[seriesId]/content-rating/route.ts` | POST | `:100` | `:127`, `:180` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/series/[seriesId]/human-translation-permission/route.ts` | POST | `:20` | `:33`, `:40` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/series/[seriesId]/source-language/route.ts` | POST | `:44` | `:63`, `:81` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/series/[seriesId]/translation-permission/route.ts` | POST | `:68` | `:95`, `:116` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/series/reaction/route.ts` | POST,DELETE | `:18` | `:107`, `:194` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/word-explanations/route.ts` | POST | `:180` | `:180`、`:200` | admin あり | ログイン必須の部分あり。私用ライブラリは `resolvePrivateLibraryTranslationAccess`、作品は `resolveEpisodeTranslationAccess` で判定してから admin で読む。問題の疑いなし（判定関数の中身は見ていない） |
