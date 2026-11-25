@@ -106,7 +106,8 @@
     "test:play-logs": "node --import tsx scripts/test-play-logs.ts",
     "test:display-name-availability": "node --import tsx scripts/test-display-name-availability.ts",
     "test:check-display-name-availability": "node --import tsx scripts/test-check-display-name-availability.ts",
-    "test:check-email-availability": "node --import tsx scripts/test-check-email-availability.ts"
+    "test:check-email-availability": "node --import tsx scripts/test-check-email-availability.ts",
+    "test:billing-config": "node --import tsx scripts/test-billing-config.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
