@@ -115,7 +115,8 @@
     "test:require-logged-in-user": "node --import tsx scripts/test-require-logged-in-user.ts",
     "test:require-owned-series": "node --import tsx scripts/test-require-owned-series.ts",
     "test:official-account-entitlement": "node --import tsx scripts/test-official-account-entitlement.ts",
-    "test:official-author-display": "node --import tsx scripts/test-official-author-display.ts"
+    "test:official-author-display": "node --import tsx scripts/test-official-author-display.ts",
+    "test:private-media-source-access": "node --import tsx scripts/test-private-media-source-access.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

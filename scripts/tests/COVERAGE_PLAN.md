@@ -47,6 +47,7 @@
 | `src/lib/auth/requireOwnedSeries.ts` | `scripts/test-require-owned-series.ts` | `test:require-owned-series` | 2026-11-25 | PASS、tsc PASS（差し替え）。所有者でないときも「ログインへ移動」になる（403 や not found ではない） |
 | `src/lib/auth/officialAccount.server.ts` | `scripts/test-official-account-entitlement.ts` | `test:official-account-entitlement` | 2026-11-25 | PASS、tsc PASS（admin クライアントは差し替え） |
 | `src/lib/auth/officialAuthor.server.ts` | `scripts/test-official-author-display.ts` | `test:official-author-display` | 2026-11-25 | PASS、tsc PASS（admin クライアントは差し替え） |
+| `src/lib/recording/privateMediaSourceAccess.ts` | `scripts/test-private-media-source-access.ts` | `test:private-media-source-access` | 2026-11-25 | PASS、tsc PASS（Supabase は差し替え） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
@@ -54,7 +55,6 @@
 
 
 
-- `src/lib/recording/privateMediaSourceAccess.ts`
 - `src/lib/auth/registrationGate.server.ts`
 - `src/lib/library/privateLibraryImportServer.ts`
 
