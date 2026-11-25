@@ -43,3 +43,15 @@
 | `public.reader_card_likes` | migration に RLS 有効化の文が無い（作成は `20260422013000_add_profile_links_and_social_relations.sql:35`） | 0 | `src/features/bookmark/SavedWorkSearchClient.tsx:69` [client] がブラウザから `user_id` で読む。書き込みは `src/app/api/readers/like/route.ts` [admin] | ブラウザから自分の行を読める必要がある | 要確認（`author_follows` と同じ） |
 | `public.bgm_library_favorites` | migration に RLS 有効化の文が無い（作成は `20260331143000_add_bgm_library_favorites.sql:3`） | 0 | `src/lib/bgm/bgmLibrary.ts:160`（呼び出し側のクライアント次第） | 自分のお気に入り | 要確認 |
 | `public.nemo_generation_queue` | migration に RLS 有効化の文が無い（作成は `20260421183000_add_nemo_generation_queue.sql:1`） | 0 | `src/lib/recording/nemoAutoGeneration.ts` [admin]、`src/lib/recording/nemoGenerationQueue.ts` [admin] | サーバーだけの作業キュー | 要確認。本番で RLS が無効で anon/authenticated に権限が残っていれば、キューを読み書きできる |
+
+## 2. SECURITY DEFINER 関数
+
+migration の最後の定義で SECURITY DEFINER のまま残っている関数（36件、削除済みは除く）。「実行可」は migration 上の最後の `grant`/`revoke execute`。
+
+| 関数 | 最後の定義 | search_path | `auth.uid()` | 実行できる役割 | 呼ぶ側 | 判定 |
+|---|---|---|---|---|---|---|
+| `libread_internal.h2_guard_human_temp_storage` | `20261114130000_issue137_h2_human_staging_lease.sql:196` | `''`（空） | なし | 実行可: 明示の grant なし（revoke: public, anon, authenticated。根拠 `20261114130000_issue137_h2_human_staging_lease.sql:255`） | トリガー用。直接呼ぶ必要はない | 問題の疑いなし（ブラウザの役割から外している） |
+| `libread_internal.h2_source_is_staging_eligible` | `20261114130000_issue137_h2_human_staging_lease.sql:60` | `''`（空） | なし | 実行可: service_role（revoke: public, anon, authenticated。根拠 `20261114130000_issue137_h2_human_staging_lease.sql:109`, `20261114130000_issue137_h2_human_staging_lease.sql:111`） | サーバー（service role）からだけ | 問題の疑いなし（ブラウザの役割から外している） |
+| `public.abort_private_library_import` | `20260827120000_expand_private_library_long_form_import.sql:382` | public | あり | 実行可: authenticated, service_role（revoke: public, anon。根拠 `20260915190000_security_harden_rls_and_internal_rpcs.sql:116`, `20260915190000_security_harden_rls_and_internal_rpcs.sql:117`） | ブラウザ（ログイン利用者）から呼ぶ RPC | 問題の疑いなし（auth.uid() で本人に限る。中身の分岐までは見ていない）。search_path は public（`child65-followup.md:126` の見立てでは今の CREATE 権限の下で安全） |
+| `public.account_google_consent_satisfied` | `20261115180000_issue142_pr3b_identity_bound_consent.sql:52` | `''`（空） | あり | 実行可: anon, authenticated, service_role（revoke: public。根拠 `20261115180000_issue142_pr3b_identity_bound_consent.sql:97`, `20261115180000_issue142_pr3b_identity_bound_consent.sql:98`） | RLS の restrictive ポリシーの中で呼ぶ（`20261115120000_issue142_google_consent_rls.sql:140`）。未ログインの読み取りでも評価されるので anon の実行権が要る | 問題の疑いなし（返すのは真偽だけで、auth.uid() の本人分だけを見る。中身の分岐までは見ていない） |
+| `public.append_private_library_import_units` | `20260915203000_enforce_private_library_import_actual_size.sql:7` | public | あり | 実行可: authenticated, service_role（revoke: public, anon。根拠 `20260915203000_enforce_private_library_import_actual_size.sql:127`, `20260915203000_enforce_private_library_import_actual_size.sql:128`） | ブラウザ（ログイン利用者）から呼ぶ RPC | 問題の疑いなし（auth.uid() で本人に限る。中身の分岐までは見ていない）。search_path は public（`child65-followup.md:126` の見立てでは今の CREATE 権限の下で安全） |
