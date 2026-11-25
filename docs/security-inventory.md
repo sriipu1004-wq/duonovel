@@ -133,3 +133,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/readers/like/route.ts` | POST,DELETE | `:15` | `:82`, `:163` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/recordings/ai-audio/[recordingId]/route.ts` | GET | `:59` | 自動抽出で見つからず | admin あり | `loadPrivateMediaSourceContext` と `canServePrivateAiNarration`、地域制限（`regionBlockedApiResponse`）の後に配信。テスト `test:private-media-playback-proxy` PASS |
 | `src/app/api/recordings/aivis-autogen-run-pending/route.ts` | POST | `:21` | 自動抽出で見つからず | admin なし | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:33`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
+| `src/app/api/recordings/aivis-generate/route.ts` | POST | `:254` | 自動抽出で見つからず | admin あり | ログイン必須、公式朗読アカウントだけ（`isOfficialNarrationAccountUser` `:266`）。AI 朗読の生成は停止中の応答あり（`ai_narration_generation_suspended`）。問題の疑いなし |
+| `src/app/api/recordings/human-audio/[recordingId]/route.ts` | GET | `:98` | `:102` | admin あり | 同上（`canServeHumanRecordingAudio`） |
+| `src/app/api/recordings/human-delete/route.ts` | POST | `:120` | `:138`, `:162` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/recordings/human-publish/route.ts` | POST | `:358` | `:502` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
+| `src/app/api/recordings/human-upload-abort/route.ts` | POST | `:30` | `:71` | admin あり | ログイン必須。本人の `user.id` を入れたセッションを組み立て、その lease だけを閉じる。問題の疑いなし（lease 側の照合までは見ていない） |
