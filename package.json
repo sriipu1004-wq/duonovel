@@ -122,7 +122,8 @@
     "test:sync-public-user-profile": "node --import tsx scripts/test-sync-public-user-profile.ts",
     "test:official-author-grant-server": "node --import tsx scripts/test-official-author-grant-server.ts",
     "test:private-library-translation-access": "node --import tsx scripts/test-private-library-translation-access.ts",
-    "test:human-translation-server": "node --import tsx scripts/test-human-translation-server.ts"
+    "test:human-translation-server": "node --import tsx scripts/test-human-translation-server.ts",
+    "test:translation-reservation-server": "node --import tsx scripts/test-translation-reservation-server.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
