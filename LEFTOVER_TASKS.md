@@ -24,8 +24,8 @@ LIB read 固有の制約（全項目共通）:
 - 1コミットの単位: コマンドの種類ごと
 - 追加: 2026-11-08
 
-## LT-002｜毎週・進行中
-- 次の一歩: `scripts/tests/COVERAGE_PLAN.md` の「候補」の先頭（`recording/recordingEntry.ts`）から続ける。済み53件、不具合の疑い3件（nemoChunking の重複読み上げ、nemoWav の 8bit の無音、humanRecordingAlignment の複数文セグメント）。
+## LT-002｜毎週・完了（2026-11-26 の週）
+- 次の一歩: 次週は main に増えた `src/lib/` のモジュールを `scripts/tests/COVERAGE_PLAN.md` の方法で洗い直して続ける（今週で済み72件。残りは Supabase のクライアントを作るだけの3件で対象外）。不具合の疑い3件（nemoChunking の重複読み上げ、nemoWav の 8bit の無音、humanRecordingAlignment の複数文セグメント）はオーナーの判断待ち。
 - 種類: テスト追加（繰り返し型）
 - 内容: テストの無いモジュールを1つずつ選び、今の挙動を固定するテストを足す。
   - 優先する対象: `src/lib/` の純粋な関数（入力から出力が決まるもの）

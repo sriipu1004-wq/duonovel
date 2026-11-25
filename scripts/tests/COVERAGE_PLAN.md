@@ -82,10 +82,11 @@
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
-2026-11-25（夕）の再計算で残ったもの（行数の少ない順。`supabaseClient`・`supabase/client`・`supabase/proxy` はクライアントを作るだけなので外した）:
+2026-11-25（夕）の再計算で残った15件は、すべて上の「済み」に移した。今残っているのは `supabaseClient`・`supabase/client`・`supabase/proxy` だけ（クライアントを作るだけなので対象外にした）。次の週は main に増えたモジュールを同じ方法で洗い直す。
 
 
 ## 後回し（純粋でない）
+なし（2026-11-25 に `audioUploadValidation`・`aivisClient`・`nemoClient` を偽の AudioContext・fetch でテストした）。
 
 ## 不具合の疑い
 - `src/lib/recording/nemoChunking.ts` の `buildNemoChunks`（2026-11-25、テストは足していない）
