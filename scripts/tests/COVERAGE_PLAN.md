@@ -9,10 +9,10 @@
 |---|---|---|---|---|
 | `src/lib/readerAuthorHref.ts` | `scripts/test-reader-author-href.ts` | `test:reader-author-href` | 2026-11-25 | PASS、tsc PASS |
 | `src/lib/recording/audioUploadPolicy.ts` | `scripts/test-audio-upload-policy.ts` | `test:audio-upload-policy` | 2026-11-25 | PASS、tsc PASS |
+| `src/lib/recording/nemoRegenerationDiff.ts` | `scripts/test-nemo-regeneration-diff.ts` | `test:nemo-regeneration-diff` | 2026-11-25 | PASS、tsc PASS。`猫…`→`猫...` を「読みが変わった」と判定する今の挙動も固定した |
 
 ## 候補（未着手、上から順に）
 - `src/lib/searchSavedFilters.ts`（キーの解決とラベル）
-- `src/lib/recording/nemoRegenerationDiff.ts`
 - `src/lib/translation/segmentJapaneseEpisode.ts`
 - `src/lib/recording/nemoPronunciationDictionary.ts`
 - `src/lib/seo/jaSearchDiscovery.ts`
