@@ -104,7 +104,8 @@
     "test:nemo-playback-compatibility": "node --import tsx scripts/test-nemo-playback-compatibility.ts",
     "test:popularity-events": "node --import tsx scripts/test-popularity-events.ts",
     "test:play-logs": "node --import tsx scripts/test-play-logs.ts",
-    "test:display-name-availability": "node --import tsx scripts/test-display-name-availability.ts"
+    "test:display-name-availability": "node --import tsx scripts/test-display-name-availability.ts",
+    "test:check-display-name-availability": "node --import tsx scripts/test-check-display-name-availability.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
