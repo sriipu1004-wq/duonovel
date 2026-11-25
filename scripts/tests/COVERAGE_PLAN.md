@@ -25,12 +25,12 @@
 | `src/lib/recording/humanRecordingAlignment.ts` | `scripts/test-human-recording-alignment.ts` | `test:human-recording-alignment` | 2026-11-25 | PASS、tsc PASS（1文ずつのセグメントの場合だけ固定。下の不具合の疑いを参照） |
 | `src/lib/seo/currentSearchDiscovery.ts` | `scripts/test-current-search-discovery.ts` | `test:current-search-discovery` | 2026-11-25 | PASS、tsc PASS |
 | `src/lib/effects/effectTextLayout.ts` | `scripts/test-effect-text-layout.ts` | `test:effect-text-layout` | 2026-11-25 | PASS、tsc PASS。短い場面転換のきっかけ（例「見当」）や文の一部だけのタイムスタンプは、しきい値（0.12・長さの比 0.55）に届かず捨てられる（今の挙動として固定） |
+| `src/lib/authorFollow.ts` | `scripts/test-author-follow.ts` | `test:author-follow` | 2026-11-25 | PASS、tsc PASS（Supabase は呼び出しを記録するモック） |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
-- `src/lib/authorFollow.ts`（Supabase を引数で受けるので、簡単なモックでテストできる）
-- `src/lib/authorProfileLike.ts`（同上）
+- `src/lib/authorProfileLike.ts`（Supabase を引数で受けるので、簡単なモックでテストできる）
 - `src/lib/readerCardLike.ts`（同上）
 
 ## 後回し（純粋でない）
