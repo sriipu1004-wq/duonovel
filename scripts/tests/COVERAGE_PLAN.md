@@ -72,13 +72,13 @@
 | `src/lib/popularity.ts` | `scripts/test-popularity.ts` | `test:popularity` | 2026-11-25 | PASS、tsc PASS（next/cache・admin クライアントは差し替え）。期間は東京の日付で比べ、両端を含む。数が `NaN` なら 0、文字列の数は数に直して足す |
 | `src/lib/translation/executeEpisodeTranslationGeneration.ts` | `scripts/test-execute-episode-translation-generation.ts` | `test:execute-episode-translation-generation` | 2026-11-25 | PASS、tsc PASS（admin・AI 利用量の予約・翻訳の予約・OpenAI の翻訳・用語集の書き込みは差し替え。`OPENAI_API_KEY` は偽の値で、OpenAI には接続していない）。成功のときは AI 利用量の予約を返さない（使った分として残す）。結果の保存に失敗すると、ログはいったん success にした後で failed に書き直す |
 | `src/lib/publicRead.ts` | `scripts/test-public-read.ts` | `test:public-read` | 2026-11-25 | PASS、tsc PASS（react の cache・Supabase の server/admin クライアント・R18 設定は差し替え）。R18 の作品は表示を許していない閲覧者でも payload（本文の行を含む）を返し、`r18Blocked: true` で録音だけを空にする（隠すのは呼び出し側）。非公開の作品で最初の認証の読み出しが失敗すると、もう1回読み直す |
+| `src/lib/og/ogFontCoverage.generated.ts` | `scripts/test-og-font-coverage-generated.ts` | `test:og-font-coverage-generated` | 2026-11-25 | PASS、tsc PASS。同梱の4つのサブセットフォント（`src/assets/og-fonts/`）の文字表（cmap、形式4・12）をテストの中で読み、その和集合と範囲表が一致することを固定（6488字）。範囲は並び順・重なりなし・隣接は結合済み |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
 
 2026-11-25（夕）の再計算で残ったもの（行数の少ない順。`supabaseClient`・`supabase/client`・`supabase/proxy` はクライアントを作るだけなので外した）:
 - `src/lib/recording/humanRecordingPublish.ts`
-- `src/lib/og/ogFontCoverage.generated.ts`
 - `src/lib/recording/nemoGenerationQueue.ts`
 
 

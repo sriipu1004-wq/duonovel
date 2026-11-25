@@ -140,7 +140,8 @@
     "test:aozora-gaiji-generated": "node --import tsx scripts/test-aozora-gaiji-generated.ts",
     "test:popularity": "node --import tsx scripts/test-popularity.ts",
     "test:execute-episode-translation-generation": "node --import tsx scripts/test-execute-episode-translation-generation.ts",
-    "test:public-read": "node --import tsx scripts/test-public-read.ts"
+    "test:public-read": "node --import tsx scripts/test-public-read.ts",
+    "test:og-font-coverage-generated": "node --import tsx scripts/test-og-font-coverage-generated.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
