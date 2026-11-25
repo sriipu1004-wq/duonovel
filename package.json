@@ -117,7 +117,8 @@
     "test:official-account-entitlement": "node --import tsx scripts/test-official-account-entitlement.ts",
     "test:official-author-display": "node --import tsx scripts/test-official-author-display.ts",
     "test:private-media-source-access": "node --import tsx scripts/test-private-media-source-access.ts",
-    "test:registration-gate-server": "node --import tsx scripts/test-registration-gate-server.ts"
+    "test:registration-gate-server": "node --import tsx scripts/test-registration-gate-server.ts",
+    "test:private-library-import-errors": "node --import tsx scripts/test-private-library-import-errors.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

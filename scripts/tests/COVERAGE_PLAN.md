@@ -49,6 +49,7 @@
 | `src/lib/auth/officialAuthor.server.ts` | `scripts/test-official-author-display.ts` | `test:official-author-display` | 2026-11-25 | PASS、tsc PASS（admin クライアントは差し替え） |
 | `src/lib/recording/privateMediaSourceAccess.ts` | `scripts/test-private-media-source-access.ts` | `test:private-media-source-access` | 2026-11-25 | PASS、tsc PASS（Supabase は差し替え） |
 | `src/lib/auth/registrationGate.server.ts` | `scripts/test-registration-gate-server.ts` | `test:registration-gate-server` | 2026-11-25 | PASS、tsc PASS（next/headers は差し替え） |
+| `src/lib/library/privateLibraryImportServer.ts` | `scripts/test-private-library-import-errors.ts` | `test:private-library-import-errors` | 2026-11-25 | PASS、tsc PASS。1日の上限の文言に、廃止済みの「AI生成」が残っている（ほかの料金の説明は「公開作品のAI翻訳解放・個人本棚への取り込み」。文言だけの差で、記録だけ）。上限の判定だけ大文字・小文字を区別する |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
@@ -56,7 +57,6 @@
 
 
 
-- `src/lib/library/privateLibraryImportServer.ts`
 
 ## 後回し（純粋でない）
 - `src/lib/recording/audioUploadValidation.ts`（ブラウザの `AudioContext` が要る）
