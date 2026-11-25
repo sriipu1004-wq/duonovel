@@ -59,9 +59,27 @@
 | `src/lib/billing/billing.server.ts` | `scripts/test-billing-server.ts` | `test:billing-server` | 2026-11-25 | PASS、tsc PASS（admin クライアントと Stripe クライアントは偽物。Stripe・DB には接続していない） |
 | `src/lib/aiUsage/aiUsage.server.ts` | `scripts/test-ai-usage-server.ts` | `test:ai-usage-server` | 2026-11-25 | PASS、tsc PASS（差し替え。環境変数は偽の値）。サブスク利用者の単語解説は日次回数を数えず月間予算だけを使う。`subscriber_until` が空なら期限なしのサブスク扱い |
 | `src/lib/translation/episodeTranslationServer.ts` | `scripts/test-episode-translation-server.ts` | `test:episode-translation-server` | 2026-11-25 | PASS、tsc PASS（差し替え）。地域制限は作品の作者本人にもかかる（作者でも、制限された国からは本文・翻訳を読めない）。今の挙動として固定 |
+| `src/lib/recording/recordingEntry.ts` | `scripts/test-recording-entry.ts` | `test:recording-entry` | 2026-11-25 | PASS、tsc PASS（Supabase の server クライアント・next/headers・next/navigation は差し替え）。作品の取得はログインの判定より先なので、未ログインでも作品が無ければ not found になる。題名は前後の空白を取らずにそのまま返す |
 
 ## 候補（未着手、上から順に。2026-11-25 に洗い直し）
 最初の洗い出しは、テストからの参照を文字列で探しただけで、ソースの文字列を読むだけのテスト（例 `test:public-seo-alignment`）も「テスト済み」と数えていた。洗い直しでは、`scripts/test-*` が `../src/lib/…` か `@/lib/…` から import しているものだけを「テスト済み」とした。
+
+2026-11-25（夕）の再計算で残ったもの（行数の少ない順。`supabaseClient`・`supabase/client`・`supabase/proxy` はクライアントを作るだけなので外した）:
+- `src/lib/recording/privateMediaProxy.ts`
+- `src/lib/legacyAttribution.server.ts`
+- `src/lib/updates/followingUpdates.server.ts`
+- `src/lib/translation/prepareEpisodeTranslationGeneration.ts`
+- `src/lib/recording/audioPlaybackNormalization.ts`
+- `src/lib/translation/seriesTranslationGlossaryAutoServer.ts`
+- `src/lib/translation/publicWorkTranslations.ts`
+- `src/lib/translation/seriesTranslationConsistencyServer.ts`
+- `src/lib/aozora/aozoraGaijiGenerated.ts`
+- `src/lib/popularity.ts`
+- `src/lib/translation/executeEpisodeTranslationGeneration.ts`
+- `src/lib/publicRead.ts`
+- `src/lib/recording/humanRecordingPublish.ts`
+- `src/lib/og/ogFontCoverage.generated.ts`
+- `src/lib/recording/nemoGenerationQueue.ts`
 
 
 ## 後回し（純粋でない）
