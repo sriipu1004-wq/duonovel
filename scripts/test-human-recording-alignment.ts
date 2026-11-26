@@ -94,6 +94,71 @@ const ruby = alignHumanRecordingToBodyOrThrow({
 });
 assert.equal(ruby.metrics.matchedSentenceCount, 2);
 
+// KD-6 regression: one segment holding two body sentences is split at the
+// sentence boundary before matching. Without word timestamps the time is
+// divided by character count (吾輩は猫である。 = 8 chars, 名前はまだ無い。 = 8 chars).
+const twoSentenceSegment = [
+  segment(0, 0, 3, "吾輩は猫である。名前はまだ無い。"),
+  segment(1, 3.2, 6, "どこで生れたかとんと見当がつかぬ。"),
+];
+const multi = alignHumanRecordingToBodyOrThrow({ body, transcription: transcription(twoSentenceSegment) });
+assert.deepEqual(multi.metrics, perfect);
+assert.deepEqual(timings(multi), [
+  [0, 0, 0, 0, 1.5, "aligned_segment", 1, "吾輩は猫である。", "吾輩は猫である。"],
+  [1, 0, 1, 1.5, 1.5, "aligned_segment", 1, "名前はまだ無い。", "名前はまだ無い。"],
+  [2, 1, 2, 3.2, 2.8, "aligned_segment", 1, "どこで生れたかとんと見当がつかぬ。", "どこで生れたかとんと見当がつかぬ。"],
+]);
+
+// Whisper-style spacing between sentences does not prevent the split.
+const spaced = alignHumanRecordingToBodyOrThrow({
+  body,
+  transcription: transcription([
+    segment(0, 0, 3, " 吾輩は猫である。 名前はまだ無い。"),
+    segment(1, 3.2, 6, "どこで生れたかとんと見当がつかぬ。"),
+  ]),
+});
+assert.equal(spaced.metrics.matchedSentenceCount, 3);
+
+// With word timestamps the split uses the word times.
+const multiWithWords = alignHumanRecordingToBodyOrThrow({
+  body,
+  transcription: transcription(
+    [
+      segment(0, 0, 3, "吾輩は猫である。名前はまだ無い。"),
+      segment(1, 3.2, 6, "どこで生れたかとんと見当がつかぬ。"),
+    ],
+    words
+  ),
+});
+assert.deepEqual(multiWithWords.metrics, perfect);
+assert.deepEqual(
+  multiWithWords.manifest.sentenceTimings.map((timing) => [timing.timeSeconds, timing.durationSeconds, timing.timingSource]),
+  [
+    [0.1, 1.1, "aligned_word"],
+    [1.5, 1.3, "aligned_word"],
+    [3.3, 2.6, "aligned_word"],
+  ]
+);
+
+// A word that straddles the sentence boundary is interpolated inside the word,
+// so the second sentence still starts after the first.
+const straddle = alignHumanRecordingToBodyOrThrow({
+  body,
+  transcription: transcription(
+    [
+      segment(0, 0, 3, "吾輩は猫である。名前はまだ無い。"),
+      segment(1, 3.2, 6, "どこで生れたかとんと見当がつかぬ。"),
+    ],
+    [
+      { word: "吾輩は猫で", startTimeSeconds: 0, endTimeSeconds: 1 },
+      { word: "ある。名前", startTimeSeconds: 1, endTimeSeconds: 2 },
+      { word: "はまだ無い。", startTimeSeconds: 2, endTimeSeconds: 3 },
+    ]
+  ),
+});
+assert.equal(straddle.metrics.matchedSentenceCount, 3);
+assert.ok(straddle.manifest.sentenceTimings[1].timeSeconds > straddle.manifest.sentenceTimings[0].timeSeconds);
+
 // Errors.
 assert.throws(
   () => alignHumanRecordingToBodyOrThrow({ body: "", transcription: transcription(oneSentencePerSegment) }),
@@ -108,4 +173,4 @@ assert.throws(
   /human_alignment_insufficient:\{"totalSentenceCount":3,"matchedSentenceCount":0/
 );
 
-console.log("PASS: human recording alignment (segment/word timings, ruby, error codes)");
+console.log("PASS: human recording alignment (segment/word timings, multi-sentence segments, ruby, error codes)");
