@@ -13,6 +13,7 @@ import {
 import {
   EFFECT_EDITOR_KEYS,
   isOwnedSeriesEffectSettingsPayload,
+  buildOperatorKeyConcurrencyFilters,
   mergeOwnedSeriesEffectSettings,
 } from "../src/lib/write/ownedSeriesEffectSettings";
 
@@ -97,7 +98,59 @@ const defendedNoStored = mergeOwnedSeriesEffectSettings(
   { notes: "x", publicDomain: { forged: true } },
   { notes: "y" }
 );
-assert.deepEqual(defendedNoStored, { notes: "x" });
+assert.deepEqual(
+  defendedNoStored,
+  serializeEffectSettingsForSave({ notes: "x" }),
+  "editor keys are stored normalized; stored effect keys are replaced"
+);
+assert.equal(Object.prototype.hasOwnProperty.call(defendedNoStored, "publicDomain"), false);
+
+// 2b. Effect values are normalized before storing (review S2): raw browser
+// values that the normalizer rejects or reshapes are never stored as-is.
+const raw = {
+  ...emptyEffectSettings(),
+  notes: "ok",
+  typography: { fontFamily: { evil: true }, fontSize: "9999px", bold: "yes" },
+  inlineMarks: [{ targetText: "", kind: "x" }, "junk", { targetText: "hi", kind: "bogus" }],
+  illustrations: "not-an-array",
+} as unknown as Record<string, unknown>;
+assert.equal(isOwnedSeriesEffectSettingsPayload(raw), true, "shape is allowed; values are normalized");
+const normalizedSave = mergeOwnedSeriesEffectSettings(raw, stored);
+const expectedEffect = serializeEffectSettingsForSave(raw) as unknown as Record<string, unknown>;
+assert.ok(expectedEffect);
+for (const key of EFFECT_EDITOR_KEYS) {
+  assert.deepEqual(normalizedSave?.[key], expectedEffect[key], `normalized ${key}`);
+}
+assert.deepEqual(normalizedSave?.publicDomain, publicDomain);
+assert.equal(Array.isArray(normalizedSave?.illustrations), true);
+assert.equal((normalizedSave?.inlineMarks as unknown[]).every((m) => typeof m === "object"), true);
+// An editor payload that normalizes to "empty" clears effect keys only.
+assert.deepEqual(
+  mergeOwnedSeriesEffectSettings({ notes: "   " }, stored),
+  { storyFormat: "short", publicDomain, legacyAttribution }
+);
+
+// 2c. Compare-and-set filters on the operator records (review S2).
+assert.deepEqual(buildOperatorKeyConcurrencyFilters(stored), [
+  { kind: "eq", column: "effect_settings->publicDomain", value: JSON.stringify(publicDomain) },
+  { kind: "eq", column: "effect_settings->legacyAttribution", value: JSON.stringify(legacyAttribution) },
+]);
+assert.deepEqual(buildOperatorKeyConcurrencyFilters({ notes: "x" }), [
+  { kind: "is", column: "effect_settings->publicDomain", value: null },
+  { kind: "is", column: "effect_settings->legacyAttribution", value: null },
+]);
+assert.deepEqual(buildOperatorKeyConcurrencyFilters(null), [
+  { kind: "is", column: "effect_settings->publicDomain", value: null },
+  { kind: "is", column: "effect_settings->legacyAttribution", value: null },
+]);
+assert.deepEqual(buildOperatorKeyConcurrencyFilters({ publicDomain: null }), [
+  { kind: "eq", column: "effect_settings->publicDomain", value: "null" },
+  { kind: "is", column: "effect_settings->legacyAttribution", value: null },
+], "a JSON null value is compared as jsonb null, not as an absent key");
+const legacyString = JSON.stringify(stored);
+assert.deepEqual(buildOperatorKeyConcurrencyFilters(legacyString), [
+  { kind: "eq", column: "effect_settings", value: JSON.stringify(legacyString) },
+]);
 
 // 3. Wiring: the series effect editor saves through the server action, not a
 // browser-side whole-column overwrite of series.effect_settings.
@@ -118,6 +171,17 @@ assert.ok(
   "reads stored value before the update"
 );
 assert.equal(action.split('.eq("author_id", auth.user.id)').length - 1, 2, "owner filter on read and write");
+// CAS: the update carries the operator-key filters, retries once on 0 rows,
+// then reports an explicit conflict instead of overwriting.
+assert.ok(action.includes("buildOperatorKeyConcurrencyFilters(previous.effect_settings)"));
+assert.ok(action.includes("update.eq(filter.column, filter.value)"));
+assert.ok(action.includes("update.is(filter.column, null)"));
+assert.ok(action.includes("const MAX_SAVE_ATTEMPTS = 2;"));
+assert.ok(action.includes('return { ok: false, code: "concurrent_update" };'));
+assert.ok(
+  action.indexOf("for (let attempt = 0; attempt < MAX_SAVE_ATTEMPTS") < action.indexOf('.select("id, effect_settings")'),
+  "the retry re-reads the stored value"
+);
 assert.equal(action.includes("service_role"), false);
 assert.equal(action.includes("createAdminClient"), false);
 
