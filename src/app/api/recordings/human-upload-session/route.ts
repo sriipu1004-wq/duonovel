@@ -17,6 +17,8 @@ import {
   RECORDING_GLOBAL_CONSENT_VERSION,
 } from "@/lib/recording/recordingConsent";
 import { createClient } from "@/lib/supabase/server";
+import { regionBlockedApiResponse } from "@/lib/rights/regionRestriction.server";
+import { loadRecordingTargetForViewer } from "@/lib/recording/recordingTargetAccess.server";
 import {
   buildHumanMultipartUploadSession,
   HUMAN_MULTIPART_MAX_TOTAL_BYTES,
@@ -162,42 +164,38 @@ export async function POST(request: Request) {
       );
     }
 
-    // Resolve authorization through the session-bound client rather than the
-    // service role. The canonical RLS rules already express the intended
-    // visibility boundary: owners can access their drafts, while other users
-    // only see publicly posted works/episodes.
-    const { data: series, error: seriesError } = await supabase
-      .from("series")
-      .select("id, recording_permission_mode")
-      .eq("id", seriesId)
-      .maybeSingle();
+    // #216 (KD-4): the recording APIs are outside the proxy's region guard,
+    // so the visitor's country is checked here (D030, fail closed).
+    const regionBlocked = await regionBlockedApiResponse(request, seriesId);
+    if (regionBlocked) return regionBlocked;
 
-    if (seriesError || !series) {
-      throw new Error("recording_entry_denied");
+    // A per-country restricted work hides its episodes from every non-author
+    // session (RESTRICTIVE RLS), so the target is read through the service
+    // role with the same select RLS applied in the query and in code: owners
+    // can access their drafts, other users only public, posted episodes.
+    const adminSupabase = createAdminClient();
+    const target = await loadRecordingTargetForViewer(adminSupabase, {
+      seriesId,
+      episodeId,
+      viewerId: user.id,
+    });
+
+    if (!target.ok) {
+      throw new Error(
+        target.reason === "episode_not_accessible"
+          ? "episode_not_accessible"
+          : "recording_entry_denied"
+      );
     }
 
     const decision = decideRecordingEntryAccess({
       permissionMode: normalizeRecordingPermissionMode(
-        series.recording_permission_mode
+        target.series.recording_permission_mode
       ),
       isLoggedIn: true,
     });
     if (!decision.canEnter) {
       throw new Error("recording_entry_denied");
-    }
-
-    const { data: episode, error: episodeError } = await supabase
-      .from("episodes")
-      .select("id, series_id")
-      .eq("id", episodeId)
-      .maybeSingle();
-
-    if (
-      episodeError ||
-      !episode ||
-      String(episode.series_id) !== seriesId
-    ) {
-      throw new Error("episode_not_accessible");
     }
 
     const { data: consent, error: consentError } = await supabase
@@ -212,7 +210,6 @@ export async function POST(request: Request) {
 
     // #181: provider-side PRIVATE visibility is verified BEFORE the H2 lease
     // is opened and before any signed multipart upload token is minted.
-    const adminSupabase = createAdminClient();
     const privateBucketName = await assertApprovedPrivateHumanRecordingBucket(adminSupabase);
 
     // H2 cleanup (best-effort, this actor only): retire leases whose 3 h

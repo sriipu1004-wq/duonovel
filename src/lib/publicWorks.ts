@@ -34,6 +34,10 @@ import { isSeriesTranslationEligible } from "@/lib/translation/episodeTranslatio
 import { matchesPublicWorkLanguageFilters } from "@/lib/search/publicWorkLanguageFilter";
 import { getPublicSearchLanguageFilters } from "@/lib/search/publicSearchRequestContext";
 import { PUBLIC_RECORDING_AGGREGATE_SELECT } from "@/lib/recording/publicRecordingSelects";
+import {
+  fetchRestrictedPublicEpisodes,
+  fetchRestrictedPublicRecordings,
+} from "@/lib/rights/restrictedWorkPublicReads.server";
 import { isPublishedHumanRecording } from "@/lib/recording/humanRecordingState";
 import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { readLegacyAttribution, resolveOriginalAuthorName } from "@/lib/legacyAttribution";
@@ -250,7 +254,19 @@ async function fetchEpisodesBySeriesIds(seriesIds: string[]): Promise<Map<string
     throw new Error(`episodes の取得に失敗: ${fetched.error.message}`);
   }
 
-  const episodes = fetched.rows;
+  // #216 (KD-4): anon RLS hides per-country restricted works' episodes
+  // (D030), yet those works stay public. Add their posted, published episodes
+  // read through the service role with the same conditions (see
+  // restrictedWorkPublicReads.server.ts). Anon never returns these rows, so
+  // nothing is counted twice; ids are de-duplicated anyway.
+  const episodes = [...fetched.rows];
+  const seenEpisodeIds = new Set(episodes.map((episode) => String(episode.id)));
+  for (const row of await fetchRestrictedPublicEpisodes(seriesIds, PUBLIC_WORK_EPISODE_SELECT)) {
+    const episode = row as unknown as EpisodeRow;
+    if (seenEpisodeIds.has(String(episode.id))) continue;
+    seenEpisodeIds.add(String(episode.id));
+    episodes.push(episode);
+  }
   const grouped = new Map<string, EpisodeRow[]>();
   for (const episode of episodes) {
     const seriesId = getEpisodeSeriesId(episode);
@@ -690,11 +706,37 @@ function normalizeSeriesIds(seriesIds?: string[]): string[] {
 
 const PUBLIC_HUMAN_RECORDING_PAGE_SIZE = 1000;
 
+const RESTRICTED_RECORDING_AGGREGATE_SELECT = `${PUBLIC_RECORDING_AGGREGATE_SELECT.trimEnd()},
+  episode_id
+`;
+
+/**
+ * #216 (KD-4): public recordings of per-country restricted works (D030),
+ * which anon RLS hides although the works stay public. Read through the
+ * service role ONLY for those works, with recordings_select_public_visible
+ * written out in the query and re-checked in code, under the same read
+ * deadline as the anon read. A failure leaves them out (the previous
+ * behaviour) instead of failing the catalog.
+ */
+async function fetchRestrictedRecordingAggregateRows(
+  normalizedSeriesIds: string[]
+): Promise<RecordingAggregateRow[]> {
+  // Never throws: a failure returns no supplement (logged there).
+  const rows = await fetchRestrictedPublicRecordings(
+    normalizedSeriesIds.length > 0 ? normalizedSeriesIds : null,
+    RESTRICTED_RECORDING_AGGREGATE_SELECT,
+    { humanOnly: true }
+  );
+  return rows as unknown as RecordingAggregateRow[];
+}
+
 async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<PublicRecordingAggregate[]> {
   // Public aggregates are read with the anon client (#137): RLS
   // `recordings_select_public_visible` returns only public recordings on
   // posted, published episodes of public series, so this fails closed and
-  // shares the public read deadline. No service_role for public counts.
+  // shares the public read deadline. The service role is used only for the
+  // per-country restricted works anon cannot see (#216), with the same
+  // conditions written out (fetchRestrictedRecordingAggregateRows).
   const supabase = createPublicServerClient();
   const normalizedSeriesIds = normalizeSeriesIds(seriesIds);
   const wantedSeriesIds =
@@ -736,6 +778,14 @@ async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<Pub
     if (pageRows.length < PUBLIC_HUMAN_RECORDING_PAGE_SIZE) {
       break;
     }
+  }
+
+  const seenRecordingIds = new Set(data.map((row) => String(row.id ?? "")));
+  for (const row of await fetchRestrictedRecordingAggregateRows(normalizedSeriesIds)) {
+    const id = String(row.id ?? "");
+    if (!id || seenRecordingIds.has(id)) continue;
+    seenRecordingIds.add(id);
+    data.push(row);
   }
 
   const aggregateMap = new Map<

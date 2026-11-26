@@ -23,11 +23,8 @@ import {
 } from "@/lib/recording/recordingEntry";
 import { isH1GuardedHumanRow } from "@/lib/recording/humanRecordingState";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
 
-type UserSupabase = Awaited<ReturnType<typeof createClient>>;
 type AdminSupabase = ReturnType<typeof createAdminClient>;
-type GenerationSupabase = UserSupabase | AdminSupabase;
 type RawRow = Record<string, unknown>;
 
 export type NemoEpisodeSource = {
@@ -38,7 +35,9 @@ export type NemoEpisodeSource = {
 };
 
 export type GenerateNemoRecordingInput = {
-  supabase: GenerationSupabase;
+  // #216 (KD-4): always the service role. Callers authorize the target first
+  // (routes: regionBlockedApiResponse + loadRecordingTargetForViewer).
+  supabase: AdminSupabase;
   userId: string;
   seriesId: string;
   episodeId: string;
@@ -352,7 +351,7 @@ async function removeStorageObjectPaths(
 }
 
 async function loadNemoGenerationAccess(
-  supabase: GenerationSupabase,
+  supabase: AdminSupabase,
   seriesId: string,
   userId: string
 ): Promise<void> {
@@ -381,7 +380,7 @@ async function loadNemoGenerationAccess(
 }
 
 async function fetchNemoEpisodeSource(
-  supabase: GenerationSupabase,
+  supabase: AdminSupabase,
   seriesId: string,
   episodeId: string
 ): Promise<NemoEpisodeSource | null> {

@@ -28,6 +28,8 @@ import {
 } from "@/lib/recording/recordingConsent";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { regionBlockedApiResponse } from "@/lib/rights/regionRestriction.server";
+import { loadRecordingTargetForViewer } from "@/lib/recording/recordingTargetAccess.server";
 import { readSelfChosenDisplayName } from "@/lib/auth/selfChosenDisplayName";
 
 export const runtime = "nodejs";
@@ -133,19 +135,43 @@ export async function POST(request: Request) {
     );
   }
 
-  const [{ data: series, error: seriesError }, { data: episode, error: episodeError }] =
-    await Promise.all([
-      supabase.from("series").select("*").eq("id", seriesId).maybeSingle(),
-      supabase.from("episodes").select("*").eq("id", episodeId).maybeSingle(),
-    ]);
-
-  if (seriesError || !series) {
+  // #216 (KD-4): the recording APIs are outside the proxy's region guard,
+  // so the visitor's country is checked here (D030, fail closed).
+  let regionBlocked: Response | null;
+  try {
+    regionBlocked = await regionBlockedApiResponse(request, seriesId);
+  } catch {
     return NextResponse.json(
-      { ok: false, error: "対象作品が見つからない。" },
+      { ok: false, error: "作品の公開地域を確認できなかった。" },
+      { status: 503 }
+    );
+  }
+  if (regionBlocked) return regionBlocked;
+
+  // A per-country restricted work hides its episodes from every non-author
+  // session (RESTRICTIVE RLS), so the target is read through the service
+  // role with the same select RLS applied in the query and in code.
+  const admin = createAdminClient();
+  const target = await loadRecordingTargetForViewer(admin, {
+    seriesId,
+    episodeId,
+    viewerId: user.id,
+  });
+
+  if (!target.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          target.reason === "episode_not_accessible"
+            ? "対象話が見つからないか、この作品に属していない。"
+            : "対象作品が見つからない。",
+      },
       { status: 404 }
     );
   }
 
+  const { series, episode } = target;
   const entryDecision = decideRecordingEntryAccess({
     permissionMode: normalizeRecordingPermissionMode(series.recording_permission_mode),
     isLoggedIn: true,
@@ -154,17 +180,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "この作品に対する朗読投稿権限がない。" },
       { status: 403 }
-    );
-  }
-
-  if (
-    episodeError ||
-    !episode ||
-    String(episode.series_id) !== seriesId
-  ) {
-    return NextResponse.json(
-      { ok: false, error: "対象話が見つからないか、この作品に属していない。" },
-      { status: 404 }
     );
   }
 
@@ -219,7 +234,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const admin = createAdminClient();
   let bucketName: string;
   try {
     // Recheck before sealing/reading parts: bucket visibility or server
