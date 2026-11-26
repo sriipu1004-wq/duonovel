@@ -165,11 +165,17 @@ export async function streamPrivateMediaObject(
   // fetch decodes a content-encoded body, so its content-length would not
   // match the bytes we send; drop it (and the encoding) in that case.
   const encoded = Boolean(upstream.headers.get("content-encoding")?.trim());
-  for (const name of ["content-range", "content-length", "accept-ranges", "etag", "last-modified"]) {
+  for (const name of ["content-range", "content-length", "etag", "last-modified"]) {
     if (encoded && name === "content-length") continue;
     const value = upstream.headers.get(name);
     if (value) headers.set(name, value);
   }
+  // KD-5: from Next.js 16.4.5 a Node route handler's Content-Length is always
+  // dropped on the wire (send-response.js, GHSA-pc58-hwjq-p385), so the body
+  // goes out chunked. Media elements then learn the size and seekability only
+  // from Accept-Ranges and the 206 Content-Range total. This proxy forwards
+  // any single bytes= range, so advertise that regardless of the upstream.
+  headers.set("Accept-Ranges", "bytes");
 
   // Keep the client-abort link for the body's lifetime, then detach.
   const reader = upstream.body.getReader();
