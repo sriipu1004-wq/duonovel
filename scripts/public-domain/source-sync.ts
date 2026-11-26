@@ -10,9 +10,13 @@ import { isAllowedAozoraTextUrl } from "./aozora";
 import {
   gutenbergBodyBetweenMarkers,
   gutenbergEbookNumberFromTextUrl,
+  gutenbergHeaderEbookNumbers,
+  gutenbergHeaderMatchesEbookNumber,
   gutenbergMirrorUrls,
   gutenbergRdfDeclaresUsPublicDomain,
   isAllowedGutenbergTextUrl,
+  pinnedGutenbergFetchRoute,
+  type GutenbergSourceFetch,
 } from "./gutenberg";
 import {
   chooseGonguTxtSourceFromPopupHtml,
@@ -357,10 +361,22 @@ for (const [index, id] of ids.entries()) {
     }
   }
 
+  if (sourceKind === "gutenberg") {
+    // The fetched file must be the ebook the manifest names: its PG header
+    // ("[eBook #N]") has to state the same number and no other.
+    const ebookNumber = gutenbergEbookNumberFromTextUrl(downloadUrl);
+    const sourceText = new TextDecoder("utf-8").decode(sourceBytes);
+    if (!ebookNumber || !gutenbergHeaderMatchesEbookNumber(sourceText, ebookNumber)) {
+      throw new Error(
+        `${id}: Project Gutenberg header ebook number [${gutenbergHeaderEbookNumbers(sourceText).join(", ")}] does not match ${ebookNumber ?? "unknown"}`
+      );
+    }
+  }
+
+  let crossChecked: string | null = null;
   if (gutenbergMirror) {
     const mirrorBody = gutenbergBodyBetweenMarkers(new TextDecoder("utf-8", { fatal: true }).decode(sourceBytes));
     if (!mirrorBody) throw new Error(`${id}: PGLAF mirror text has no START/END markers`);
-    let crossChecked: string | null = null;
     for (const url of gutenbergMirror.crossCheck) {
       const check = await fetchWithTransientRetry(
         url,
@@ -388,8 +404,19 @@ for (const [index, id] of ids.entries()) {
 
   const hash = sha256Bytes(sourceBytes);
   if (manifest.source_hash && manifest.source_hash !== hash) {
+    const pinnedRoute =
+      sourceKind === "gutenberg" ? pinnedGutenbergFetchRoute(rawManifest) : null;
+    const currentRoute = gutenbergMirror ? "pglaf_mirror" : "www";
+    const routeHint =
+      pinnedRoute && pinnedRoute !== currentRoute
+        ? ` (pinned from ${pinnedRoute}, fetched now from ${currentRoute}; retry ` +
+          (pinnedRoute === "pglaf_mirror"
+            ? "with PUBLIC_DOMAIN_GUTENBERG_MIRROR=pglaf"
+            : "without PUBLIC_DOMAIN_GUTENBERG_MIRROR") +
+          " before re-review)"
+        : "";
     throw new Error(
-      `${id}: pinned source_hash differs from fetched source; manual re-review required`
+      `${id}: pinned source_hash differs from fetched source; manual re-review required${routeHint}`
     );
   }
 
@@ -398,6 +425,21 @@ for (const [index, id] of ids.entries()) {
     rawManifest.source_retrieved_at = new Date().toISOString();
   }
   rawManifest.source_hash = hash;
+  if (sourceKind === "gutenberg") {
+    // Machine-readable fetch route, so a later re-sync can tell which route
+    // the pinned hash came from (rights_notes is prose only).
+    const fetchedAt = new Date().toISOString();
+    const sourceFetch: GutenbergSourceFetch = gutenbergMirror
+      ? {
+          route: "pglaf_mirror",
+          text_url: gutenbergMirror.text,
+          catalog_rdf_url: gutenbergMirror.rdf,
+          cross_check_url: crossChecked!,
+          fetched_at: fetchedAt,
+        }
+      : { route: "www", text_url: downloadUrl, fetched_at: fetchedAt };
+    rawManifest.source_fetch = sourceFetch;
+  }
   writeFileSync(manifestPath, `${JSON.stringify(rawManifest, null, 2)}\n`, "utf8");
   console.log(
     `SYNCED ${id}: ${sourceBytes.byteLength} bytes sha256=${hash.slice(0, 16)}...`
