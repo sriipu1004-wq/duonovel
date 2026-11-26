@@ -134,7 +134,13 @@ for manifest_id in sys.argv[1:]:
         ),
     }
     shared = "Exact provider source is hash-pinned; no modern translation, cover, illustration, annotation or editorial layer is imported (texts with a modern introduction were excluded)."
-    rc["edition"] = {"status": "approved", "basis": shared, "notes": m["rights_notes"].split(" Evidence: ")[-1][:300]}
+    # Full first-publication evidence from the batch file (not a cut-off slice
+    # of rights_notes, which also carries the operator-review sentence).
+    work = WORKS[number]
+    edition_notes = f"Evidence: {work['evidence']}"
+    if work.get("base_printing"):
+        edition_notes += f" Base printing: {work['base_printing']}"
+    rc["edition"] = {"status": "approved", "basis": shared, "notes": edition_notes}
     rc["editorial"] = {"status": "approved", "basis": shared, "notes": ""}
     rc["annotations"] = {"status": "approved", "basis": shared, "notes": ""}
     rc["digitization"] = {

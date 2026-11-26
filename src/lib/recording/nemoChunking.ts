@@ -1,4 +1,5 @@
 import {
+  convertNemoSentencesToSpoken,
   preprocessNemoBodyToParagraphs,
   type NemoPreprocessOptions,
 } from "@/lib/recording/nemoTextPreprocess";
@@ -188,30 +189,26 @@ export function buildNemoChunks(
   let globalSentenceIndex = 0;
 
   paragraphs.forEach((paragraph, paragraphIndex) => {
-    const originalSentenceUnits = splitIntoSentenceUnits(
-      paragraph.originalParagraph
+    // KD-9: split the ORIGINAL paragraph into sentences and convert them to
+    // spoken text 1:1 (one group per sentence; neighbouring sentences merge
+    // only when a ruby or dictionary entry spans them). Splitting the spoken
+    // paragraph separately and pairing by position duplicated text whenever
+    // preprocessing merged two sentences.
+    const sentenceGroups = convertNemoSentencesToSpoken(
+      splitIntoSentenceUnits(paragraph.originalParagraph),
+      preprocessOptions
     );
-    const spokenSentenceUnits = splitIntoSentenceUnits(paragraph.spokenParagraph);
-
-    const sentenceCount = Math.max(
-      originalSentenceUnits.length,
-      spokenSentenceUnits.length
-    );
+    const sentenceCount = sentenceGroups.length;
 
     let chunkIndex = 0;
 
     for (let sentenceOffset = 0; sentenceOffset < sentenceCount; sentenceOffset += 1) {
-      const originalSentenceText =
-        originalSentenceUnits[sentenceOffset] ??
-        spokenSentenceUnits[sentenceOffset] ??
-        "";
-      const spokenSentenceText =
-        spokenSentenceUnits[sentenceOffset] ??
-        originalSentenceUnits[sentenceOffset] ??
-        "";
+      const group = sentenceGroups[sentenceOffset];
+      const originalSentenceText = group.originalText;
+      const spokenSentenceText = group.spokenText;
 
       if (!spokenSentenceText.trim()) {
-        globalSentenceIndex += 1;
+        globalSentenceIndex += group.originalSentenceCount;
         continue;
       }
 
@@ -221,8 +218,16 @@ export function buildNemoChunks(
         const isLastSplitOfSentence = splitIndex === splitUnits.length - 1;
         const isLastSentenceOfParagraph = sentenceOffset === sentenceCount - 1;
 
+        // normalizeClassicalJapanese (nemoTextPreprocess.ts) turns every run
+        // of 2+ dashes into "、", so a sentence ending in "――" is spoken as
+        // "…、"; judge the pause from the original so it keeps the dash pause.
+        const pauseText =
+          isLastSplitOfSentence && endsWithDashPause(originalSentenceText)
+            ? originalSentenceText
+            : splitUnit;
+
         const pauseAfterMs = resolvePauseAfterMs({
-          text: splitUnit,
+          text: pauseText,
           isLastSplitOfSentence,
           isLastSentenceOfParagraph,
         });
@@ -239,7 +244,7 @@ export function buildNemoChunks(
         chunkIndex += 1;
       });
 
-      globalSentenceIndex += 1;
+      globalSentenceIndex += group.originalSentenceCount;
     }
   });
 

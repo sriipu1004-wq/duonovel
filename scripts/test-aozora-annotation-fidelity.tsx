@@ -215,6 +215,33 @@ function testSyntheticRubySplit() {
   // A ruby spanning three units (#195 S3-1) is joined into the first one.
   assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["漢字《かん", "じ", "》です"]), ["漢字《かんじ》", "", "です"]);
   assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["前の天人阿", "修羅等《あしゅ", "らとう》。"]), ["前の天人阿修羅等《あしゅらとう》", "", "。"]);
+  // KD-1 (#195 review S3-1): the middle unit lies wholly inside the ruby and the
+  // base starts in the first unit; the whole base gets the ruby.
+  assert.deepEqual(rebalanceAozoraNotationAcrossUnits(["か東", "京《とうきょう", "》々。"]), ["か東京《とうきょう》", "", "々。"]);
+  // KD-1 (#195 review S3-2): the directive rebalance (#140) empties a unit
+  // between the ruby start and its continuation; the ruby is still joined.
+  assert.deepEqual(
+    rebalanceAozoraNotationAcrossUnits(["見る［＃「見", "る」に傍点］", "眞岡木綿《まを", "かもめん》の"]),
+    ["見る［＃「見る」に傍点］", "", "眞岡木綿《まをかもめん》", "の"]
+  );
+  assert.deepEqual(rebalanceAozoraNotationAcrossUnits(["一｜場", "", "《ぢやう》の"]), ["一｜場《ぢやう》", "", "の"]);
+  assert.deepEqual(rebalanceAozoraNotationAcrossUnits(["羊の毛", "", "《け》のやう"]), ["羊の毛《け》", "", "のやう"]);
+  // KD-1 (#195 review S3-3): every cut of a ruby into THREE units (two cut
+  // points) renders one correct ruby with no literal notation left.
+  for (const sample of samples) {
+    for (let first = 1; first < sample.text.length - 1; first += 1) {
+      for (let second = first + 1; second < sample.text.length; second += 1) {
+        const units = [sample.text.slice(0, first), sample.text.slice(first, second), sample.text.slice(second)];
+        const rebalanced = rebalanceAozoraNotationAcrossUnits(units);
+        const label = units.join("|");
+        assert.equal(rebalanced.length, units.length, label);
+        assert.equal(rebalanced.join(""), sample.text, label);
+        const markup = rebalanced.map((unit) => html(renderTextWithAozoraRuby(unit))).join("");
+        assert.deepEqual(rubyPairs(markup), sample.ruby, `ruby lost or wrong (3 units): ${label}`);
+        assert.doesNotMatch(markup.replace(/<rt[^>]*>[^<]*<\/rt>/gu, ""), /[《》｜]|［＃/u, `literal ruby (3 units): ${label}`);
+      }
+    }
+  }
   // Never closed within the window: nothing moves (stays literal, fail visible).
   assert.deepEqual(rebalanceAozoraRubyAcrossUnits(["漢字《かん", "じ", "で"]), ["漢字《かん", "じ", "で"]);
   // Not a ruby boundary: untouched.

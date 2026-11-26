@@ -5,6 +5,7 @@ import type {
 import {
   buildHumanAlignedSentenceList,
   normalizeComparableSentenceText,
+  splitIntoTrackingSentenceUnits,
 } from "@/lib/recording/humanTimingShared";
 import type {
   HumanRecordingTranscriptionResult,
@@ -42,6 +43,7 @@ const MAX_START_OFFSET = 2;
 const MAX_SEGMENTS_PER_SENTENCE = 4;
 const MAX_WORDS_PER_WINDOW = 24;
 const WORD_PADDING_SECONDS = 0.08;
+const MIN_SPLIT_STEP_SECONDS = 0.001;
 
 const INLINE_RUBY_WITH_PIPE_PATTERN =
   /｜([^《》\r\n]+)《([^《》\r\n]+)》/gu;
@@ -398,6 +400,127 @@ function buildAlignmentMetrics(args: {
   };
 }
 
+function stripWhitespace(text: string): string {
+  return text.replace(/\s+/gu, "");
+}
+
+/**
+ * Returns a function mapping a character offset (in the whitespace-stripped
+ * segment text) to a time in seconds. When the words inside the segment spell
+ * exactly the same text, times are interpolated inside each word; otherwise
+ * they are interpolated over the whole segment by character count.
+ */
+function buildSegmentCharacterClock(
+  segment: HumanRecordingTranscriptionSegment,
+  compactText: string,
+  words: HumanRecordingTranscriptionWord[]
+): (offset: number) => number {
+  const totalLength = compactText.length;
+  const segmentDuration = segment.endTimeSeconds - segment.startTimeSeconds;
+
+  const proportionalClock = (offset: number) =>
+    segment.startTimeSeconds +
+    (totalLength > 0 ? (offset / totalLength) * segmentDuration : 0);
+
+  const segmentWords = words.filter(
+    (word) =>
+      word.startTimeSeconds >= segment.startTimeSeconds - WORD_PADDING_SECONDS &&
+      word.endTimeSeconds <= segment.endTimeSeconds + WORD_PADDING_SECONDS
+  );
+
+  const wordSpans: Array<{ start: number; end: number; length: number }> = [];
+  let wordText = "";
+
+  for (const word of segmentWords) {
+    const compactWord = stripWhitespace(word.word);
+    if (!compactWord) {
+      continue;
+    }
+    wordText += compactWord;
+    wordSpans.push({
+      start: word.startTimeSeconds,
+      end: word.endTimeSeconds,
+      length: compactWord.length,
+    });
+  }
+
+  if (wordSpans.length === 0 || wordText !== compactText) {
+    return proportionalClock;
+  }
+
+  return (offset: number) => {
+    let consumed = 0;
+
+    for (const span of wordSpans) {
+      if (offset <= consumed + span.length) {
+        const within = (offset - consumed) / span.length;
+        return span.start + within * (span.end - span.start);
+      }
+      consumed += span.length;
+    }
+
+    return wordSpans[wordSpans.length - 1].end;
+  };
+}
+
+/**
+ * KD-6: a transcription segment often holds two or more body sentences
+ * (Whisper-style output). Split such segments at sentence boundaries, using
+ * the same splitter as the body, so each sentence can be matched on its own.
+ * Segments that hold a single sentence are returned unchanged.
+ */
+function splitSegmentsAtSentenceBoundaries(
+  segments: HumanRecordingTranscriptionSegment[],
+  words: HumanRecordingTranscriptionWord[]
+): HumanRecordingTranscriptionSegment[] {
+  return segments.flatMap((segment) => {
+    // Keep each part's own spacing (English words stay separated); offsets
+    // are measured on the whitespace-stripped text.
+    const parts = splitIntoTrackingSentenceUnits(segment.text)
+      .map((part) => part.trim())
+      .filter((part) => stripWhitespace(part).length > 0);
+
+    if (parts.length <= 1) {
+      return [segment];
+    }
+
+    const compactText = stripWhitespace(segment.text);
+    if (parts.map((part) => stripWhitespace(part)).join("") !== compactText) {
+      return [segment];
+    }
+
+    const clock = buildSegmentCharacterClock(segment, compactText, words);
+    const result: HumanRecordingTranscriptionSegment[] = [];
+    let offset = 0;
+    let previousStart = Number.NEGATIVE_INFINITY;
+
+    for (const part of parts) {
+      const startOffset = offset;
+      offset += stripWhitespace(part).length;
+
+      // A zero-length (or very short) segment would give every part the same
+      // start time, and later parts would be dropped as non-increasing.
+      // Keep starts strictly increasing with a minimum step.
+      const startTimeSeconds = roundTiming(
+        Math.max(clock(startOffset), previousStart + MIN_SPLIT_STEP_SECONDS)
+      );
+      const endTimeSeconds = roundTiming(
+        Math.max(clock(offset), startTimeSeconds + MIN_SPLIT_STEP_SECONDS)
+      );
+      previousStart = startTimeSeconds;
+
+      result.push({
+        id: segment.id,
+        startTimeSeconds,
+        endTimeSeconds,
+        text: part,
+      });
+    }
+
+    return result;
+  });
+}
+
 function assertAlignmentQualityOrThrow(
   metrics: HumanRecordingAlignmentMetrics
 ): void {
@@ -445,7 +568,7 @@ export function alignHumanRecordingToBodyOrThrow({
     throw new Error("episode_body_empty");
   }
 
-  const segments = transcription.segments.filter(
+  const validSegments = transcription.segments.filter(
     (segment) =>
       segment.text.trim().length > 0 &&
       Number.isFinite(segment.startTimeSeconds) &&
@@ -453,7 +576,7 @@ export function alignHumanRecordingToBodyOrThrow({
       segment.endTimeSeconds >= segment.startTimeSeconds
   );
 
-  if (segments.length === 0) {
+  if (validSegments.length === 0) {
     throw new Error("human_transcription_empty");
   }
 
@@ -464,6 +587,8 @@ export function alignHumanRecordingToBodyOrThrow({
       Number.isFinite(word.endTimeSeconds) &&
       word.endTimeSeconds >= word.startTimeSeconds
   );
+
+  const segments = splitSegmentsAtSentenceBoundaries(validSegments, words);
 
   let segmentCursor = 0;
   let lastMatchedTimeSeconds = -1;
@@ -500,12 +625,21 @@ export function alignHumanRecordingToBodyOrThrow({
       endTimeSeconds: candidate.endTimeSeconds,
     });
 
-    const bestWordWindow = pickBestWordWindow({
+    const pickedWordWindow = pickBestWordWindow({
       words: candidateWords,
       sentenceCandidates: sentence.comparableCandidates,
       sentenceNormalizedText: sentence.normalizedText,
       candidateSimilarity: candidate.similarity,
     });
+
+    // If the word window would start at or before the previous match (e.g.
+    // zero-length word timings), fall back to the segment timing instead of
+    // dropping the sentence.
+    const bestWordWindow =
+      pickedWordWindow &&
+      pickedWordWindow.startTimeSeconds > lastMatchedTimeSeconds
+        ? pickedWordWindow
+        : null;
 
     const matchedStartTimeSeconds =
       bestWordWindow?.startTimeSeconds ?? candidate.startTimeSeconds;
