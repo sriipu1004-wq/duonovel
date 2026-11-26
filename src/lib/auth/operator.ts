@@ -10,10 +10,9 @@ function parseOperatorEmails(raw: string | undefined): string[] {
 }
 
 export function getOperatorEmails(): string[] {
-  return parseOperatorEmails(
-    process.env.LIBREAD_OPERATOR_EMAILS ??
-      process.env.NEXT_PUBLIC_LIBREAD_OPERATOR_EMAILS
-  );
+  // Server-only setting. A NEXT_PUBLIC_ name is intentionally not read: such
+  // names can be inlined into the browser bundle.
+  return parseOperatorEmails(process.env.LIBREAD_OPERATOR_EMAILS);
 }
 
 export function isOperatorUser(email: string | null | undefined): boolean {

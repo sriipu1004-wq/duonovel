@@ -16,9 +16,10 @@
 | `src/lib/seo/jaSearchDiscovery.ts` | `scripts/test-ja-search-discovery.ts` | `test:ja-search-discovery` | 2026-11-25 | PASS、tsc PASS。既存の `test:public-seo-alignment` はソースの文字列を見るだけで、関数は動かしていなかった |
 | `src/lib/bgm/bgmSettings.ts` | `scripts/test-bgm-settings.ts` | `test:bgm-settings` | 2026-11-25 | PASS、tsc PASS。`clampBgmSeconds` は空白だけの文字列・`[]` を 0、`true` を 1 にする（`Number()` の変換。不具合とまでは言えないので記録だけ） |
 | `src/lib/effects/effectSettings.ts` | `scripts/test-effect-settings.ts` | `test:effect-settings` | 2026-11-25 | PASS、tsc PASS。挿絵の `imageUrl` は前後の空白を取るだけで、URL の形式は見ていない（今の挙動として固定） |
-| `src/lib/auth/operator.ts` | `scripts/test-auth-operator.ts` | `test:auth-operator` | 2026-11-25 | PASS、tsc PASS。`LIBREAD_OPERATOR_EMAILS` が無いときだけ `NEXT_PUBLIC_LIBREAD_OPERATOR_EMAILS` を使う（空文字なら使わない）。`NEXT_PUBLIC_` の名前はブラウザ用の bundle に入りうる名前（実際に入っているかは見ていない） |
+| `src/lib/auth/operator.ts` | `scripts/test-auth-operator.ts` | `test:auth-operator` | 2026-11-26 | PASS、tsc PASS。KD-13 で `LIBREAD_OPERATOR_EMAILS` だけを読むように変えた（`NEXT_PUBLIC_LIBREAD_OPERATOR_EMAILS` は読まない。回帰テストあり） |
 | `src/lib/aiUsage/aiUsage.ts` | `scripts/test-ai-usage-format.ts` | `test:ai-usage-format` | 2026-11-25 | PASS、tsc PASS |
-| `src/lib/translation/openAITranslationModel.ts` | `scripts/test-openai-translation-model.ts` | `test:openai-translation-model` | 2026-11-25 | PASS、tsc PASS。表に無いモデル名は gpt-4.1-mini の単価になる（高いモデルを環境変数で指定すると原価の見積もりが低く出うる。記録だけ） |
+| `src/lib/translation/openAITranslationModel.ts` | `scripts/test-openai-translation-model.ts` | `test:openai-translation-model` | 2026-11-26 | PASS、tsc PASS。KD-13 で、表に無いモデル名は表の中で最も高い入力・出力単価で見積もるように変えた（回帰テストあり） |
+| `src/lib/pdfAssets.ts`、`src/app/api/pdf-assets/[kind]/[name]/route.ts` | `scripts/test-pdf-assets-route.ts` | `test:pdf-assets-route` | 2026-11-26 | PASS、tsc PASS。KD-10 で入力の検査を足した（表に無い `kind` は 404。回帰テストあり） |
 | `src/lib/recording/audioUploadServerValidation.ts` | `scripts/test-audio-upload-server-validation.ts` | `test:audio-upload-server-validation` | 2026-11-25 | PASS、tsc PASS。拡張子・MIME が表に無いと照合をしない（例 `a.bin`＋`audio/x-custom` の WAV は通る） |
 | `src/lib/recording/nemoWav.ts` | `scripts/test-nemo-wav.ts` | `test:nemo-wav` | 2026-11-25 | PASS、tsc PASS（16bit の合成 PCM で確認） |
 | `src/lib/library/zipBook.ts` | `scripts/test-zip-book.ts` | `test:zip-book` | 2026-11-25 | PASS、tsc PASS。展開前の大きさの上限は ZIP の目次に書かれた値で見る（目次の値が偽のときの挙動は確かめていない） |
