@@ -138,41 +138,58 @@ async function main() {
       /^Error: author_follows: timeout$/
     );
 
-    // Reusing the page's own getUser() result: no second Auth call, same read.
-    const { readViewerSocialTargetsForAuthUser } = await import("../src/lib/social/viewerSocialRows.server");
+    // verifySessionViewer: getUser() exactly once, reads bound to that user;
+    // no exported function takes a user id.
+    const serverModule = await import("../src/lib/social/viewerSocialRows.server");
+    assert.deepEqual(Object.keys(serverModule).sort(), ["readViewerSocialTargets", "verifySessionViewer"]);
     let getUserCalls = 0;
     const originalGetUser = session.auth.getUser;
     session.auth.getUser = async () => {
       getUserCalls += 1;
       return originalGetUser();
     };
+    state.user = { id: "user-2" };
+    state.authError = null;
     state.adminCalls = [];
     state.adminResults = {
       author_profile_likes: { data: [{ user_id: "user-2", author_id: "a-1", created_at: "2026-11-06T00:00:00Z" }], error: null },
+      author_follows: { data: [{ follower_user_id: "user-2", followed_author_id: "a-2", created_at: "" }], error: null },
     };
-    assert.deepEqual(await readViewerSocialTargetsForAuthUser({ authUser: { id: "user-2" }, kind: "liked-authors" }), {
+    const viewer = await serverModule.verifySessionViewer(sessionClient);
+    assert.equal(viewer.user?.id, "user-2");
+    // Even if the session later changes, the bound reads keep the verified user.
+    state.user = { id: "someone-else" };
+    assert.deepEqual(await viewer.readSocialTargets("liked-authors"), {
       signedIn: true,
       userId: "user-2",
       targets: [{ targetId: "a-1", createdAt: "2026-11-06T00:00:00Z" }],
     });
+    assert.deepEqual((await viewer.readSocialTargets("followed-authors")).targets, [{ targetId: "a-2", createdAt: "" }]);
     assert.deepEqual(state.adminCalls, [
       ["author_profile_likes", ["select", "user_id, author_id, created_at"], ["eq", "user_id", "user-2"]],
+      ["author_follows", ["select", "follower_user_id, followed_author_id, created_at"], ["eq", "follower_user_id", "user-2"]],
     ]);
+    assert.equal(getUserCalls, 1, "one Auth call for one verified viewer");
+    state.user = null;
     state.adminCalls = [];
-    assert.deepEqual(await readViewerSocialTargetsForAuthUser({ authUser: null, kind: "liked-authors" }), {
-      signedIn: false,
-      userId: null,
-      targets: [],
-    });
+    const signedOut = await serverModule.verifySessionViewer(sessionClient);
+    assert.equal(signedOut.user, null);
+    assert.deepEqual(await signedOut.readSocialTargets("liked-readers"), { signedIn: false, userId: null, targets: [] });
     assert.deepEqual(state.adminCalls, []);
-    assert.equal(getUserCalls, 0);
+    state.authError = sessionMissing();
+    assert.equal((await serverModule.verifySessionViewer(sessionClient)).user, null);
+    state.authError = new Error("auth down");
+    await assert.rejects(serverModule.verifySessionViewer(sessionClient), /auth down/);
+    state.authError = null;
     session.auth.getUser = originalGetUser;
 
-    // Search reuses its single getUser() result for the saved filters.
+    // Search: no direct getUser(); one verifySessionViewer; three saved
+    // filters read through the bound viewer.
     const searchSource = readFileSync("src/app/search/SearchPageLegacy.tsx", "utf8");
-    assert.equal((searchSource.match(/\.auth\.getUser\(\)/g) ?? []).length, 1, "one getUser() in Search");
-    assert.doesNotMatch(searchSource, /readViewerSocialTargets\(/, "Search does not re-run getUser via the session reader");
-    assert.equal((searchSource.match(/authUser: verifiedUser/g) ?? []).length, 3, "three saved filters reuse the verified user");
+    assert.equal((searchSource.match(/\.auth\.getUser\(/g) ?? []).length, 0, "no direct getUser() in Search");
+    assert.equal((searchSource.match(/verifySessionViewer\(/g) ?? []).length, 1, "one verifySessionViewer() in Search");
+    assert.doesNotMatch(searchSource, /readViewerSocialTargets\(/, "Search does not re-run getUser via the one-shot reader");
+    assert.equal((searchSource.match(/viewer: verifiedViewer,/g) ?? []).length, 3, "three saved filters use the verified viewer");
 
     // Core: an unknown kind and an empty verified id are refused.
     await assert.rejects(

@@ -39,10 +39,10 @@ import { canonicalizeTagLabel } from "@/i18n/tagLabels";
 import { canonicalizeGenreLabel, localizeGenreLabel } from "@/i18n/genreLabels";
 import type { UiLocale } from "@/i18n/config";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
-import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
 import type { User } from "@supabase/supabase-js";
 import {
-  readViewerSocialTargetsForAuthUser,
+  verifySessionViewer,
+  type VerifiedSessionViewer,
   type ViewerSocialKind,
 } from "@/lib/social/viewerSocialRows.server";
 
@@ -158,17 +158,15 @@ async function fetchLikedWorkSeriesIdsForUser(args: {
 }
 
 // KD-2: follow / like tables have RLS with no policies, so they are read on
-// the server (viewerSocialRows) for the user this page already verified with
-// auth.getUser() (reused: no second Auth round trip inside the 2s budget).
+// the server (viewerSocialRows), bound to the viewer this page verified once
+// with auth.getUser() (no second Auth round trip inside the 2s budget).
 async function fetchViewerSocialTargetIds(args: {
-  authUser: User;
+  viewer: VerifiedSessionViewer;
+  expectedUserId: string;
   kind: ViewerSocialKind;
 }): Promise<Set<string>> {
-  const result = await readViewerSocialTargetsForAuthUser({
-    authUser: args.authUser,
-    kind: args.kind,
-  });
-  if (!result.signedIn || result.userId !== args.authUser.id) {
+  const result = await args.viewer.readSocialTargets(args.kind);
+  if (!result.signedIn || result.userId !== args.expectedUserId) {
     throw new Error("viewer unavailable while reading saved filter");
   }
   return new Set(result.targets.map((target) => target.targetId));
@@ -683,25 +681,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   }
 
   const authSupabase = savedFilter ? await createServerClient() : null;
-  let currentUser = null;
+  let currentUser: User | null = null;
+  let sessionViewer: VerifiedSessionViewer | null = null;
   let savedFilterAuthUnavailable = false;
 
   if (authSupabase) {
     try {
-      const authResult = await runReadOnlyWithRetry(
-        async () => {
-          const result = await authSupabase.auth.getUser();
-          if (
-            result.error &&
-            !isAuthSessionMissingError(result.error)
-          ) {
-            throw result.error;
-          }
-          return result;
-        },
+      // One auth.getUser() per request; the follow / like reads below are
+      // bound to this verified viewer (KD-2).
+      sessionViewer = await runReadOnlyWithRetry(
+        () => verifySessionViewer(authSupabase),
         { operation: "search auth", timeoutMs: 2000, retries: 1 }
       );
-      currentUser = authResult.data.user ?? null;
+      currentUser = sessionViewer.user;
     } catch {
       savedFilterAuthUnavailable = true;
       console.warn("[search] viewer auth unavailable");
@@ -745,9 +737,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   let savedSeriesIds = new Set<string>();
   let savedFilterDataUnavailable = false;
 
-  if (savedFilter && currentUser && authSupabase) {
+  if (savedFilter && currentUser && authSupabase && sessionViewer) {
     const authenticatedUserId = currentUser.id;
-    const verifiedUser: User = currentUser;
+    const verifiedViewer = sessionViewer;
     try {
       if (savedFilter === "bookmarked-works") {
         savedSeriesIds = await runReadOnlyWithRetry(
@@ -767,7 +759,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         savedAuthorIds = await runReadOnlyWithRetry(
           () =>
             fetchViewerSocialTargetIds({
-              authUser: verifiedUser,
+              viewer: verifiedViewer,
+              expectedUserId: authenticatedUserId,
               kind: "followed-authors",
             }),
           { operation: "search followed authors", timeoutMs: 2000, retries: 1 }
@@ -776,7 +769,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         savedAuthorIds = await runReadOnlyWithRetry(
           () =>
             fetchViewerSocialTargetIds({
-              authUser: verifiedUser,
+              viewer: verifiedViewer,
+              expectedUserId: authenticatedUserId,
               kind: "liked-authors",
             }),
           { operation: "search liked authors", timeoutMs: 2000, retries: 1 }
@@ -794,7 +788,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         savedSeriesIds = await runReadOnlyWithRetry(
           () =>
             fetchViewerSocialTargetIds({
-              authUser: verifiedUser,
+              viewer: verifiedViewer,
+              expectedUserId: authenticatedUserId,
               kind: "liked-readers",
             }),
           { operation: "search liked readers", timeoutMs: 2000, retries: 1 }

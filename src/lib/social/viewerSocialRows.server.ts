@@ -16,42 +16,43 @@ export type { ViewerSocialKind, ViewerSocialResult, ViewerSocialTarget } from "@
 type SessionClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
- * The signed-in viewer's own follow / like rows (KD-2).
- * The user id comes only from auth.getUser() on the given session client
- * (checked with the Auth server); there is no user id parameter. The rows are
- * then read with the service role, filtered by that id, columns limited to
+ * The viewer of one request, checked once with auth.getUser() on the session
+ * client. readSocialTargets is bound to that user; no user id can be passed
+ * in from outside.
+ */
+export type VerifiedSessionViewer = {
+  /** null when signed out (session missing). */
+  user: User | null;
+  /** The viewer's own follow / like rows (KD-2), for the user above. */
+  readSocialTargets(kind: ViewerSocialKind): Promise<ViewerSocialResult>;
+};
+
+/**
+ * Calls auth.getUser() exactly once (checked with the Auth server). A missing
+ * session means signed out; any other auth error is thrown. The rows are read
+ * later with the service role, filtered by that user's id, columns limited to
  * owner, target id and created_at.
  */
-/**
- * Same read for a caller that already ran auth.getUser() on its session in
- * this request (avoids a second Auth round trip). Takes the Auth `User`
- * object returned by getUser(), not a bare id; server code only.
- */
-export async function readViewerSocialTargetsForAuthUser(args: {
-  authUser: Pick<User, "id"> | null;
-  kind: ViewerSocialKind;
-}): Promise<ViewerSocialResult> {
-  return readViewerSocialTargetsWith({
-    kind: args.kind,
-    getVerifiedViewer: async () => (args.authUser ? { userId: args.authUser.id } : null),
-    createReader: () => createAdminClient() as unknown as SocialRowsReader,
-  });
+export async function verifySessionViewer(supabase: SessionClient): Promise<VerifiedSessionViewer> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error && !isAuthSessionMissingError(error)) throw error;
+  const user = error ? null : (data.user ?? null);
+  const verified = user ? { userId: user.id } : null;
+  return {
+    user,
+    readSocialTargets: (kind) =>
+      readViewerSocialTargetsWith({
+        kind,
+        getVerifiedViewer: async () => verified,
+        createReader: () => createAdminClient() as unknown as SocialRowsReader,
+      }),
+  };
 }
 
+/** One-shot form: verify the session viewer and read one kind of rows. */
 export async function readViewerSocialTargets(args: {
   supabase: SessionClient;
   kind: ViewerSocialKind;
 }): Promise<ViewerSocialResult> {
-  return readViewerSocialTargetsWith({
-    kind: args.kind,
-    getVerifiedViewer: async () => {
-      const { data, error } = await args.supabase.auth.getUser();
-      if (error) {
-        if (isAuthSessionMissingError(error)) return null;
-        throw error;
-      }
-      return data.user ? { userId: data.user.id } : null;
-    },
-    createReader: () => createAdminClient() as unknown as SocialRowsReader,
-  });
+  return (await verifySessionViewer(args.supabase)).readSocialTargets(args.kind);
 }

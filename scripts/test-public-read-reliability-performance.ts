@@ -267,7 +267,14 @@ function verifySearchIsolation(): void {
   );
   assert.ok(search.includes("publicWorksAvailable"));
   assert.ok(search.includes("popularityAvailable"));
-  assert.ok(search.includes("isAuthSessionMissingError(result.error)"));
+  // KD-2: Search verifies the viewer once through verifySessionViewer, which
+  // treats a missing session as signed out.
+  assert.ok(search.includes("verifySessionViewer(authSupabase)"));
+  assert.ok(
+    readFileSync("src/lib/social/viewerSocialRows.server.ts", "utf8").includes(
+      "isAuthSessionMissingError(error)"
+    )
+  );
   assert.ok(search.includes("Public work data is temporarily unavailable."));
 }
 
