@@ -14,7 +14,7 @@ const EDITABLE_KEYS = new Set([
 ]);
 
 /** effect_settings keys only the operator writes (never from a client). */
-const PROTECTED_EFFECT_SETTINGS_KEYS = ["publicDomain", "legacyAttribution"] as const;
+export const PROTECTED_EFFECT_SETTINGS_KEYS =["publicDomain", "legacyAttribution"] as const;
 
 export function isValidSeriesId(value: string): boolean {
   return /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
@@ -68,7 +68,7 @@ export function isOwnedSeriesWorkspacePayload(value: unknown): value is Record<s
   return true;
 }
 
-function settingsRecord(value: unknown): Record<string, unknown> | null {
+export function settingsRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }

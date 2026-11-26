@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { saveOwnedSeriesEffectSettings } from "@/app/actions/saveOwnedSeriesEffectSettings";
 import EffectPreviewRenderer from "@/features/effects/EffectPreviewRenderer";
 import {
   EFFECT_BACKGROUND_PRESETS,
@@ -846,18 +847,35 @@ export default function EffectSettingsForm({
       pendingPreviewSettings
     );
 
-    const { error } = await supabase
-      .from(tableName)
-      .update({
-        effect_settings: serializeEffectSettingsForSave(settingsToSave),
-      })
-      .eq("id", recordId);
+    const serialized = serializeEffectSettingsForSave(settingsToSave);
+    let saveErrorMessage: string | null = null;
+
+    if (tableName === "series") {
+      // Issue #221 / KD-3: series effect_settings also holds operator records
+      // (publicDomain, legacyAttribution) and workspace keys. The server
+      // action keeps every non-effect key from the DB instead of overwriting
+      // the whole column from the browser.
+      try {
+        const result = await saveOwnedSeriesEffectSettings(recordId, serialized);
+        if (!result.ok) {
+          saveErrorMessage = `作品演出を保存できなかった（${result.code}）。`;
+        }
+      } catch {
+        saveErrorMessage = "作品演出を保存できなかった。";
+      }
+    } else {
+      const { error } = await supabase
+        .from(tableName)
+        .update({ effect_settings: serialized })
+        .eq("id", recordId);
+      if (error) saveErrorMessage = error.message;
+    }
 
     hideGlobalLoadingFeedback();
 
-    if (error) {
+    if (saveErrorMessage !== null) {
       setSaveState("error");
-      setErrorMessage(error.message);
+      setErrorMessage(saveErrorMessage);
       return;
     }
 
