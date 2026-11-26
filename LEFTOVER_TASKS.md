@@ -42,7 +42,7 @@ LIB read 固有の制約（全項目共通）:
   - SECURITY DEFINER 関数（`auth.uid()` での所有者確認、search_path、authenticated が実行できる必要があるか）
   - `src/app/api` の各 route の認証・所有者確認
   - 初回は全体を見る。2回目からは、前回の記録以降に増えた・変わった migration と route だけを見る。
-  - 問題の疑いがあっても直さず、「要確認」として記録する。
+  - 問題の疑いがあっても直さない。安全と分かっていない疑いは、`docs/security-inventory.md` に場所や根拠を書かず、PR の本文に「要確認の件あり」とだけ書く（上の「LIB read 固有の制約」）。完了条件の「根拠」は、安全と分かった行にだけ求める。
 - 触ってよい範囲: `docs/security-inventory.md`（新規）
 - 完了条件: その回の対象すべてに行があり、根拠（ファイルと行）が付いている
 - 1コミットの単位: テーブル・関数・route を5件ずつ
