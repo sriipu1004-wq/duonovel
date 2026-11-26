@@ -113,7 +113,14 @@ function createSilencePcm(durationMs: number, format: ParsedWav): Uint8Array {
     Math.round((format.sampleRate * durationMs) / 1000)
   );
 
-  return new Uint8Array(frameCount * format.blockAlign);
+  const silence = new Uint8Array(frameCount * format.blockAlign);
+
+  // 8-bit PCM is unsigned: silence is 128, not 0 (KD-9).
+  if (format.bitsPerSample === 8) {
+    silence.fill(128);
+  }
+
+  return silence;
 }
 
 function buildWav(format: ParsedWav, pcmData: Uint8Array): Uint8Array {
