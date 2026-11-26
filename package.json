@@ -90,6 +90,7 @@
     "test:openai-translation-model": "node --import tsx scripts/test-openai-translation-model.ts",
     "test:audio-upload-server-validation": "node --import tsx scripts/test-audio-upload-server-validation.ts",
     "test:nemo-wav": "node --import tsx scripts/test-nemo-wav.ts",
+    "test:nemo-chunking": "node --import tsx scripts/test-nemo-chunking.ts",
     "test:zip-book": "node --import tsx scripts/test-zip-book.ts",
     "test:human-recording-alignment": "node --import tsx scripts/test-human-recording-alignment.ts",
     "test:current-search-discovery": "node --import tsx scripts/test-current-search-discovery.ts",

@@ -1,4 +1,5 @@
 import {
+  convertNemoTextToSpoken,
   preprocessNemoBodyToParagraphs,
   type NemoPreprocessOptions,
 } from "@/lib/recording/nemoTextPreprocess";
@@ -188,27 +189,23 @@ export function buildNemoChunks(
   let globalSentenceIndex = 0;
 
   paragraphs.forEach((paragraph, paragraphIndex) => {
+    // KD-9: split the ORIGINAL paragraph into sentences and convert each
+    // sentence to its spoken form, so original and spoken sentences are 1:1.
+    // (Splitting the spoken paragraph separately and pairing by position
+    // duplicated text whenever preprocessing merged two sentences.)
     const originalSentenceUnits = splitIntoSentenceUnits(
       paragraph.originalParagraph
     );
-    const spokenSentenceUnits = splitIntoSentenceUnits(paragraph.spokenParagraph);
-
-    const sentenceCount = Math.max(
-      originalSentenceUnits.length,
-      spokenSentenceUnits.length
-    );
+    const sentenceCount = originalSentenceUnits.length;
 
     let chunkIndex = 0;
 
     for (let sentenceOffset = 0; sentenceOffset < sentenceCount; sentenceOffset += 1) {
-      const originalSentenceText =
-        originalSentenceUnits[sentenceOffset] ??
-        spokenSentenceUnits[sentenceOffset] ??
-        "";
-      const spokenSentenceText =
-        spokenSentenceUnits[sentenceOffset] ??
-        originalSentenceUnits[sentenceOffset] ??
-        "";
+      const originalSentenceText = originalSentenceUnits[sentenceOffset];
+      const spokenSentenceText = convertNemoTextToSpoken(
+        originalSentenceText,
+        preprocessOptions
+      );
 
       if (!spokenSentenceText.trim()) {
         globalSentenceIndex += 1;
@@ -221,8 +218,15 @@ export function buildNemoChunks(
         const isLastSplitOfSentence = splitIndex === splitUnits.length - 1;
         const isLastSentenceOfParagraph = sentenceOffset === sentenceCount - 1;
 
+        // Preprocessing turns a trailing "――" into "、"; judge the pause from
+        // the original sentence so a dash still gets the dash pause.
+        const pauseText =
+          isLastSplitOfSentence && endsWithDashPause(originalSentenceText)
+            ? originalSentenceText
+            : splitUnit;
+
         const pauseAfterMs = resolvePauseAfterMs({
-          text: splitUnit,
+          text: pauseText,
           isLastSplitOfSentence,
           isLastSentenceOfParagraph,
         });

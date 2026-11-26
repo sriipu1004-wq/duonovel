@@ -174,6 +174,27 @@ function normalizePauseExpressionSurface(text: string): string {
     .replace(/([」』）】])(?=[^\s、。！？!?…」』）】])/gu, "$1、");
 }
 
+/**
+ * Converts one piece of already line-joined original text (a paragraph or a
+ * single sentence) into the text sent to TTS: ruby -> reading, pronunciation
+ * dictionary, classical kana, pause-expression surface.
+ */
+export function convertNemoTextToSpoken(
+  text: string,
+  options: NemoPreprocessOptions = {}
+): string {
+  const rubyResolved = replaceRubySurfaceWithReading(text);
+
+  const dictionaryApplied = applyPronunciationDictionary(
+    rubyResolved,
+    options.pronunciationDictionary ?? {}
+  );
+
+  const normalizedClassical = normalizeClassicalJapanese(dictionaryApplied);
+
+  return normalizePauseExpressionSurface(normalizedClassical).trim();
+}
+
 export function preprocessNemoBodyToParagraphs(
   body: string,
   options: NemoPreprocessOptions = {}
@@ -188,24 +209,10 @@ export function preprocessNemoBodyToParagraphs(
 
   return rawParagraphs
     .map((paragraph) => joinLinesWithinParagraph(paragraph.split("\n")))
-    .map((originalParagraph) => {
-      const rubyResolvedParagraph =
-        replaceRubySurfaceWithReading(originalParagraph);
-
-      const dictionaryApplied = applyPronunciationDictionary(
-        rubyResolvedParagraph,
-        options.pronunciationDictionary ?? {}
-      );
-
-      const normalizedClassical = normalizeClassicalJapanese(dictionaryApplied);
-
-      const spokenParagraph = normalizePauseExpressionSurface(normalizedClassical);
-
-      return {
-        originalParagraph: originalParagraph.trim(),
-        spokenParagraph: spokenParagraph.trim(),
-      };
-    })
+    .map((originalParagraph) => ({
+      originalParagraph: originalParagraph.trim(),
+      spokenParagraph: convertNemoTextToSpoken(originalParagraph, options),
+    }))
     .filter(
       (paragraph) =>
         paragraph.originalParagraph.length > 0 &&
