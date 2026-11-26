@@ -155,6 +155,9 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 
 ## 要確認のまとめ（2026-11-25）
 1. migration に RLS 有効化の文が無いテーブル5件（`author_follows`、`author_profile_likes`、`reader_card_likes`、`bgm_library_favorites`、`nemo_generation_queue`）。うち2件はブラウザから直接読んでいる。本番の RLS・ポリシー・権限を読み取りで確かめ、migration に残すかを決める必要がある（本番の確認はこの作業の範囲外）。
+   - **本番で確認済み（2026-11-26、親がカタログを読み取りで確認）：5件とも本番で RLS は有効。** `bgm_library_favorites` には、自分の行だけを対象にする SELECT・INSERT・DELETE のポリシーがある。残る4件はポリシーが0件で、anon も authenticated も行を読み書きできない。外から読める穴は無い。残るのは次の2点。
+     - migration と本番の食い違い（RLS の有効化が migration に無い）。
+     - ブラウザから直接読む2件（`author_follows`・`reader_card_likes`）は、ポリシーが無いため結果が空になる。機能の不具合の疑いで、安全の問題ではない。
 2. `private_library_word_explanations` を今も使っているか。
 3. `src/app/api/pdf-assets/[kind]/[name]/route.ts` で `kind` が `__proto__` などのとき 404 でなく 500 になりうる（`node -e` で `path.join` が `ERR_INVALID_ARG_TYPE` を投げることを確かめた。route そのものは動かしていない）。読める範囲は広がらない。
 4. 軽いもの: `account/email/prepare-signup` と `popularity/events` の回数制限、`ai-usage` の利用者の決め方（中身を見ていない）。

@@ -10,7 +10,7 @@ import { AOZORA_GENERATED_GAIJI } from "../src/lib/aozora/aozoraGaijiGenerated";
 
 const root = join(__dirname, "..");
 const pairs = new Map<string, Set<string>>();
-for (const line of readFileSync(join(root, "scripts/aozora/gaiji-pairs.tsv"), "utf8").split("\n")) {
+for (const line of readFileSync(join(root, "scripts/aozora/gaiji-pairs.tsv"), "utf8").split(/\r?\n/)) {
   if (!line) continue;
   const [code, description, ...rest] = line.split("\t");
   assert.equal(rest.length, 0, `extra column: ${line}`);
@@ -19,7 +19,7 @@ for (const line of readFileSync(join(root, "scripts/aozora/gaiji-pairs.tsv"), "u
 }
 const equivalent = new Set(
   readFileSync(join(root, "scripts/aozora/gaiji-equivalent.tsv"), "utf8")
-    .split("\n")
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith("#"))
 );
