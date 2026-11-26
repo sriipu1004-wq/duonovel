@@ -43,6 +43,7 @@ const MAX_START_OFFSET = 2;
 const MAX_SEGMENTS_PER_SENTENCE = 4;
 const MAX_WORDS_PER_WINDOW = 24;
 const WORD_PADDING_SECONDS = 0.08;
+const MIN_SPLIT_STEP_SECONDS = 0.001;
 
 const INLINE_RUBY_WITH_PIPE_PATTERN =
   /｜([^《》\r\n]+)《([^《》\r\n]+)》/gu;
@@ -473,30 +474,45 @@ function splitSegmentsAtSentenceBoundaries(
   words: HumanRecordingTranscriptionWord[]
 ): HumanRecordingTranscriptionSegment[] {
   return segments.flatMap((segment) => {
+    // Keep each part's own spacing (English words stay separated); offsets
+    // are measured on the whitespace-stripped text.
     const parts = splitIntoTrackingSentenceUnits(segment.text)
-      .map((part) => stripWhitespace(part))
-      .filter((part) => part.length > 0);
+      .map((part) => part.trim())
+      .filter((part) => stripWhitespace(part).length > 0);
 
     if (parts.length <= 1) {
       return [segment];
     }
 
     const compactText = stripWhitespace(segment.text);
-    if (parts.join("") !== compactText) {
+    if (parts.map((part) => stripWhitespace(part)).join("") !== compactText) {
       return [segment];
     }
 
     const clock = buildSegmentCharacterClock(segment, compactText, words);
     const result: HumanRecordingTranscriptionSegment[] = [];
     let offset = 0;
+    let previousStart = Number.NEGATIVE_INFINITY;
 
     for (const part of parts) {
       const startOffset = offset;
-      offset += part.length;
+      offset += stripWhitespace(part).length;
+
+      // A zero-length (or very short) segment would give every part the same
+      // start time, and later parts would be dropped as non-increasing.
+      // Keep starts strictly increasing with a minimum step.
+      const startTimeSeconds = roundTiming(
+        Math.max(clock(startOffset), previousStart + MIN_SPLIT_STEP_SECONDS)
+      );
+      const endTimeSeconds = roundTiming(
+        Math.max(clock(offset), startTimeSeconds + MIN_SPLIT_STEP_SECONDS)
+      );
+      previousStart = startTimeSeconds;
+
       result.push({
         id: segment.id,
-        startTimeSeconds: roundTiming(clock(startOffset)),
-        endTimeSeconds: roundTiming(clock(offset)),
+        startTimeSeconds,
+        endTimeSeconds,
         text: part,
       });
     }
@@ -609,12 +625,21 @@ export function alignHumanRecordingToBodyOrThrow({
       endTimeSeconds: candidate.endTimeSeconds,
     });
 
-    const bestWordWindow = pickBestWordWindow({
+    const pickedWordWindow = pickBestWordWindow({
       words: candidateWords,
       sentenceCandidates: sentence.comparableCandidates,
       sentenceNormalizedText: sentence.normalizedText,
       candidateSimilarity: candidate.similarity,
     });
+
+    // If the word window would start at or before the previous match (e.g.
+    // zero-length word timings), fall back to the segment timing instead of
+    // dropping the sentence.
+    const bestWordWindow =
+      pickedWordWindow &&
+      pickedWordWindow.startTimeSeconds > lastMatchedTimeSeconds
+        ? pickedWordWindow
+        : null;
 
     const matchedStartTimeSeconds =
       bestWordWindow?.startTimeSeconds ?? candidate.startTimeSeconds;

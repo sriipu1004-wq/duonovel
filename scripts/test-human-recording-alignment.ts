@@ -159,6 +159,57 @@ const straddle = alignHumanRecordingToBodyOrThrow({
 assert.equal(straddle.metrics.matchedSentenceCount, 3);
 assert.ok(straddle.manifest.sentenceTimings[1].timeSeconds > straddle.manifest.sentenceTimings[0].timeSeconds);
 
+// Split parts keep their own spacing, so English words are not glued together.
+const english = alignHumanRecordingToBodyOrThrow({
+  body: "Is this a pen? Yes it is!\n\nThat is good.",
+  transcription: transcription([
+    segment(0, 0, 3, " Is this a pen? Yes it is!"),
+    segment(1, 3.2, 5, " That is good."),
+  ]),
+});
+assert.equal(english.metrics.matchedSentenceCount, 3);
+assert.deepEqual(
+  english.manifest.sentenceTimings.map((timing) => timing.spokenText),
+  ["Is this a pen?", "Yes it is!", " That is good."]
+);
+
+// A zero-length segment holding two sentences: later parts get a minimum
+// step instead of the same start time, so no sentence is dropped.
+const zeroLength = alignHumanRecordingToBodyOrThrow({
+  body,
+  transcription: transcription([
+    segment(0, 1, 1, "吾輩は猫である。名前はまだ無い。"),
+    segment(1, 3.2, 6, "どこで生れたかとんと見当がつかぬ。"),
+  ]),
+});
+assert.deepEqual(zeroLength.metrics, perfect);
+assert.deepEqual(
+  zeroLength.manifest.sentenceTimings.map((timing) => [timing.timeSeconds, timing.durationSeconds]),
+  [
+    [1, 0.01],
+    [1.001, 0.01],
+    [3.2, 2.8],
+  ]
+);
+
+// Same with zero-length word timings: the word window would not advance, so
+// the split segment timing is used instead of dropping the sentence.
+const zeroLengthWords = alignHumanRecordingToBodyOrThrow({
+  body,
+  transcription: transcription(
+    [
+      segment(0, 1, 1, "吾輩は猫である。名前はまだ無い。"),
+      segment(1, 3.2, 6, "どこで生れたかとんと見当がつかぬ。"),
+    ],
+    [
+      { word: "吾輩は猫である。", startTimeSeconds: 1, endTimeSeconds: 1 },
+      { word: "名前はまだ無い。", startTimeSeconds: 1, endTimeSeconds: 1 },
+    ]
+  ),
+});
+assert.equal(zeroLengthWords.metrics.matchedSentenceCount, 3);
+assert.ok(zeroLengthWords.manifest.sentenceTimings[1].timeSeconds > zeroLengthWords.manifest.sentenceTimings[0].timeSeconds);
+
 // Errors.
 assert.throws(
   () => alignHumanRecordingToBodyOrThrow({ body: "", transcription: transcription(oneSentencePerSegment) }),
