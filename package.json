@@ -132,6 +132,7 @@
     "test:private-media-proxy": "node --import tsx scripts/test-private-media-proxy.ts",
     "test:legacy-attribution-server": "node --import tsx scripts/test-legacy-attribution-server.ts",
     "test:following-updates-server": "node --import tsx scripts/test-following-updates-server.ts",
+    "test:kd2-rls-migration": "node --import tsx scripts/test-kd2-rls-migration.ts",
     "test:prepare-episode-translation-generation": "node --import tsx scripts/test-prepare-episode-translation-generation.ts",
     "test:audio-playback-normalization": "node --import tsx scripts/test-audio-playback-normalization.ts",
     "test:series-translation-glossary-auto-server": "node --import tsx scripts/test-series-translation-glossary-auto-server.ts",
