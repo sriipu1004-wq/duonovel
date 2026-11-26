@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
     // Bundled Noto Sans JP / KR subsets for per-work OG images (read with
     // fs at runtime; see src/lib/og/ogFonts.ts).
     "/works/*/opengraph-image*/**/*":["./src/assets/og-fonts/*.ttf"],
+    // ffmpeg binary spawned by src/lib/recording/audioPlaybackNormalization.ts
+    // (its path is computed at runtime, so it is listed here explicitly).
+    "/api/recordings/human-upload-finalize": ["./node_modules/ffmpeg-static/**/*"],
+    "/api/recordings/human-publish": ["./node_modules/ffmpeg-static/**/*"],
   },
 };
 
