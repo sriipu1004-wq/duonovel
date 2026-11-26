@@ -39,8 +39,11 @@ import {
 import {
   gutenbergArchiveDir,
   gutenbergBodyBetweenMarkers,
+  gutenbergHeaderEbookNumbers,
+  gutenbergHeaderMatchesEbookNumber,
   gutenbergMirrorUrls,
   gutenbergRdfDeclaresUsPublicDomain,
+  pinnedGutenbergFetchRoute,
   isAllowedGutenbergTextUrl,
 } from "./public-domain/gutenberg";
 import {
@@ -1671,6 +1674,55 @@ function main() {
     gutenbergBodyBetweenMarkers(cacheCopy)
   );
   assert.equal(gutenbergBodyBetweenMarkers("no markers"), null);
+  // KD-11 (#228 S3-1): a cache/epub copy that also ends with the sign-off
+  // paragraph compares equal to one without it.
+  const cacheCopyWithSignoff = cacheCopy.replace(
+    "Last line.\r\n",
+    "Last line.\r\n\r\nEnd of the Project Gutenberg EBook of X\r\n"
+  );
+  assert.equal(gutenbergBodyBetweenMarkers(cacheCopyWithSignoff), gutenbergBodyBetweenMarkers(cacheCopy));
+
+  // KD-11 (#228 S3-5): the PG header must name the manifest's ebook number only.
+  const headed = [
+    "The Project Gutenberg eBook of X",
+    "Release date: May 1, 1997 [eBook #921]",
+    "*** START OF THE PROJECT GUTENBERG EBOOK X ***",
+    "See also [eBook #5] in the body.",
+    "*** END OF THE PROJECT GUTENBERG EBOOK X ***",
+  ].join("\r\n");
+  assert.deepEqual(gutenbergHeaderEbookNumbers(headed), [921]);
+  assert.equal(gutenbergHeaderMatchesEbookNumber(headed, 921), true);
+  assert.equal(gutenbergHeaderMatchesEbookNumber(headed, 92), false);
+  assert.equal(gutenbergHeaderMatchesEbookNumber(headed, 5), false);
+  assert.equal(gutenbergHeaderMatchesEbookNumber("Release Date: 1998 [EBook #1342]\n*** START OF X", 1342), true);
+  assert.equal(gutenbergHeaderMatchesEbookNumber("Release Date: 1998\n*** START OF X", 1342), false);
+  assert.equal(
+    gutenbergHeaderMatchesEbookNumber("[eBook #1342]\n[EBook #1343]\n*** START OF X", 1342),
+    false
+  );
+
+  // KD-11 (#228 S3-3): machine-readable fetch route, with the 2026-11 batch's
+  // prose rights_notes as a fallback for manifests pinned before the field.
+  assert.equal(pinnedGutenbergFetchRoute({ source_fetch: { route: "www" } }), "www");
+  assert.equal(
+    pinnedGutenbergFetchRoute({ source_fetch: { route: "pglaf_mirror" }, rights_notes: "" }),
+    "pglaf_mirror"
+  );
+  assert.equal(pinnedGutenbergFetchRoute({ source_fetch: { route: "other" } }), null);
+  assert.equal(pinnedGutenbergFetchRoute({ rights_notes: "fetched from the PGLAF mirror gutenberg.pglaf.org" }), "pglaf_mirror");
+  assert.equal(pinnedGutenbergFetchRoute({}), null);
+  const batchManifest = JSON.parse(
+    readFileSync("public-domain/manifests/gutenberg-000146.json", "utf8")
+  ) as Record<string, unknown>;
+  assert.equal(pinnedGutenbergFetchRoute(batchManifest), "pglaf_mirror");
+  const sourceSyncText = readFileSync("scripts/public-domain/source-sync.ts", "utf8");
+  assert.equal(sourceSyncText.includes("gutenbergHeaderMatchesEbookNumber(sourceText, ebookNumber)"), true);
+  assert.equal(sourceSyncText.includes("rawManifest.source_fetch = sourceFetch"), true);
+
+  // KD-11 (#228 S3-2): edition notes keep the full evidence (no [:300] cut).
+  const approveText = readFileSync("scripts/public-domain/approve-gutenberg-batch-2026-11.py", "utf8");
+  assert.equal(approveText.includes("[:300]"), false);
+  assert.equal(approveText.includes("work['evidence']"), true);
 
   console.log(
     "PASS: Public Domain rights gate, verified public metadata display gate, conservative source policy, safe paragraph chunking, content taxonomy/narration Draft plan, hash/idempotency, and non-paid ingestion"
