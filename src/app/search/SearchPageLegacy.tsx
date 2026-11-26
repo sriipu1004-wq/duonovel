@@ -40,6 +40,10 @@ import { canonicalizeGenreLabel, localizeGenreLabel } from "@/i18n/genreLabels";
 import type { UiLocale } from "@/i18n/config";
 import { runReadOnlyWithRetry } from "@/lib/reliability/readOnly";
 import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
+import {
+  readViewerSocialTargets,
+  type ViewerSocialKind,
+} from "@/lib/social/viewerSocialRows.server";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -129,63 +133,15 @@ type GenreShelfSection = {
   emptyMessage: string;
 };
 
-async function fetchSavedAuthorIdsForUser(args: {
+async function fetchLikedWorkSeriesIdsForUser(args: {
   supabase: Awaited<ReturnType<typeof createServerClient>>;
   userId: string;
-  tableName: "author_follows" | "author_profile_likes";
-  targetColumn: "followed_author_id" | "author_id";
 }): Promise<Set<string>> {
-  const ownerColumn =
-    args.tableName === "author_follows" ? "follower_user_id" : "user_id";
-
   const { data, error } = await args.supabase
-    .from(args.tableName)
-    .select(args.targetColumn)
-    .eq(ownerColumn, args.userId);
-
-  if (error) {
-    throw error;
-  }
-
-  return new Set(
-    ((data ?? []) as Array<Record<string, unknown>>)
-      .map((row) => {
-        const rawValue = row[args.targetColumn];
-        return typeof rawValue === "string" ? rawValue.trim() : "";
-      })
-      .filter((value) => value.length > 0)
-  );
-  }
-
-async function fetchSavedSeriesIdsForUser(args: {
-  supabase: Awaited<ReturnType<typeof createServerClient>>;
-  userId: string;
-  tableName: "user_series_reactions" | "reader_card_likes";
-}): Promise<Set<string>> {
-  if (args.tableName === "user_series_reactions") {
-    const { data, error } = await args.supabase
-      .from("user_series_reactions")
-      .select("series_id")
-      .eq("user_id", args.userId)
-      .eq("reaction_type", "support");
-
-    if (error) {
-      throw error;
-    }
-
-    return new Set(
-      ((data ?? []) as Array<Record<string, unknown>>)
-        .map((row) =>
-          typeof row.series_id === "string" ? row.series_id.trim() : ""
-        )
-        .filter((value) => value.length > 0)
-    );
-  }
-
-  const { data, error } = await args.supabase
-    .from("reader_card_likes")
+    .from("user_series_reactions")
     .select("series_id")
-    .eq("user_id", args.userId);
+    .eq("user_id", args.userId)
+    .eq("reaction_type", "support");
 
   if (error) {
     throw error;
@@ -198,6 +154,23 @@ async function fetchSavedSeriesIdsForUser(args: {
       )
       .filter((value) => value.length > 0)
   );
+}
+
+// KD-2: follow / like tables have RLS with no policies, so they are read on
+// the server for the user verified by auth.getUser() (viewerSocialRows).
+async function fetchViewerSocialTargetIds(args: {
+  supabase: Awaited<ReturnType<typeof createServerClient>>;
+  kind: ViewerSocialKind;
+  expectedUserId: string;
+}): Promise<Set<string>> {
+  const result = await readViewerSocialTargets({
+    supabase: args.supabase,
+    kind: args.kind,
+  });
+  if (!result.signedIn || result.userId !== args.expectedUserId) {
+    throw new Error("viewer changed while reading saved filter");
+  }
+  return new Set(result.targets.map((target) => target.targetId));
 }
 
 const TOKYO_TIMEZONE = "Asia/Tokyo";
@@ -791,42 +764,39 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       } else if (savedFilter === "followed-authors") {
         savedAuthorIds = await runReadOnlyWithRetry(
           () =>
-            fetchSavedAuthorIdsForUser({
+            fetchViewerSocialTargetIds({
               supabase: authSupabase,
-              userId: currentUser.id,
-              tableName: "author_follows",
-              targetColumn: "followed_author_id",
+              kind: "followed-authors",
+              expectedUserId: authenticatedUserId,
             }),
           { operation: "search followed authors", timeoutMs: 2000, retries: 1 }
         );
       } else if (savedFilter === "liked-authors") {
         savedAuthorIds = await runReadOnlyWithRetry(
           () =>
-            fetchSavedAuthorIdsForUser({
+            fetchViewerSocialTargetIds({
               supabase: authSupabase,
-              userId: currentUser.id,
-              tableName: "author_profile_likes",
-              targetColumn: "author_id",
+              kind: "liked-authors",
+              expectedUserId: authenticatedUserId,
             }),
           { operation: "search liked authors", timeoutMs: 2000, retries: 1 }
         );
       } else if (savedFilter === "liked-works") {
         savedSeriesIds = await runReadOnlyWithRetry(
           () =>
-            fetchSavedSeriesIdsForUser({
+            fetchLikedWorkSeriesIdsForUser({
               supabase: authSupabase,
-              userId: currentUser.id,
-              tableName: "user_series_reactions",
+              userId: authenticatedUserId,
             }),
           { operation: "search liked works", timeoutMs: 2000, retries: 1 }
         );
       } else if (savedFilter === "liked-readers") {
         savedSeriesIds = await runReadOnlyWithRetry(
           () =>
-            fetchSavedSeriesIdsForUser({
+            fetchViewerSocialTargetIds({
               supabase: authSupabase,
-              userId: currentUser.id,
-              tableName: "reader_card_likes",
+              kind: "liked-readers",
+              expectedUserId: authenticatedUserId,
             }),
           { operation: "search liked readers", timeoutMs: 2000, retries: 1 }
         );

@@ -10,6 +10,7 @@ import {
   loadRegionRestrictionMap,
 } from "@/lib/rights/regionRestriction.server";
 import { isSchemaCompatibilityReadFailure } from "@/lib/reliability/readOnly";
+import { readViewerSocialTargets } from "@/lib/social/viewerSocialRows.server";
 import {
   runFollowingUpdates,
   type FollowingUpdateEpisode,
@@ -38,26 +39,40 @@ function readEmbeddedPublicationStatus(value: unknown): string | null {
 
 /**
  * Bookmarks, followed authors and reading markers of the signed-in viewer.
- * Read with the viewer's own session (RLS) and filtered by user id; each row
- * keeps its owner column so runFollowingUpdates can drop any other row.
+ * Bookmarks and reading markers are read with the viewer's own session (RLS)
+ * and filtered by user id. Followed authors live in author_follows, which has
+ * RLS with no policies (KD-2), so they are read on the server for the user
+ * verified by auth.getUser() (viewerSocialRows); that user must equal userId.
+ * Each row keeps its owner column so runFollowingUpdates can drop any other row.
  */
 async function readViewerRows(supabase: SessionClient, userId: string) {
   const [bookmarks, follows, playLogs] = await Promise.all([
     supabase.from("user_series_bookmarks").select("user_id, series_id").eq("user_id", userId),
-    supabase
-      .from("author_follows")
-      .select("follower_user_id, followed_author_id")
-      .eq("follower_user_id", userId),
+    readViewerSocialTargets({ supabase, kind: "followed-authors" }).then(
+      (result) => ({ result, error: null as Error | null }),
+      (error: unknown) => ({
+        result: null,
+        error: error instanceof Error ? error : new Error(String(error)),
+      })
+    ),
     supabase
       .from("play_logs")
       .select("user_id, series_id, episode_number")
       .eq("user_id", userId),
   ]);
   if (bookmarks.error) throw new Error(`bookmarks: ${bookmarks.error.message}`);
-  if (follows.error) throw new Error(`author follows: ${follows.error.message}`);
+  if (follows.error || !follows.result) {
+    throw new Error(`author follows: ${follows.error?.message ?? "unavailable"}`);
+  }
+  if (!follows.result.signedIn || follows.result.userId !== userId) {
+    throw new Error("author follows: viewer mismatch");
+  }
   return {
     bookmarks: (bookmarks.data ?? []) as Array<Record<string, unknown>>,
-    follows: (follows.data ?? []) as Array<Record<string, unknown>>,
+    follows: follows.result.targets.map((target) => ({
+      follower_user_id: userId,
+      followed_author_id: target.targetId,
+    })) as Array<Record<string, unknown>>,
     // Reading markers only hide already-read episodes; when they cannot be
     // read the list still works.
     playLogs: playLogs.error ? null : ((playLogs.data ?? []) as Array<Record<string, unknown>>),
