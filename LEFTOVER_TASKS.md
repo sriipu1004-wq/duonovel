@@ -5,7 +5,7 @@
 
 LIB read 固有の制約（全項目共通）:
 - 本番（Vercel・Supabase `nyxbnccuvmlzffgtdadi`・本番ドメイン）には、読み取りも含めて触れない。
-- merge、PR の作成、Issue や PR へのコメントはしない。
+- merge、Issue や PR へのコメントはしない。PR は、余り枠のブランチから main への Draft PR（ai-operator-policy `policies/leftover/02-delivery.md` の届け方）だけを作ってよい。取り込むのは親。
 - 権利・R18・公開範囲・Auth・課金の挙動を変えるコードは書かない。
 - ローカルの使い捨て Supabase（`scripts/dev/local-supabase.sh`）を使ったときは、結果に `LOCAL` と書く。終わったら `stop` し、`docker ps -a` で何も残っていないことを確かめる。
 - 繰り返し型（LT-001〜003）は、毎週前回の記録を読んでから続きをやる。
