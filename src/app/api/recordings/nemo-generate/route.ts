@@ -8,6 +8,8 @@ import { markEpisodeGeneratedInNemoQueue } from "@/lib/recording/nemoGenerationQ
 import { isOfficialNarrationAccountUser } from "@/lib/auth/officialNarrationAccount";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { regionBlockedApiResponse } from "@/lib/rights/regionRestriction.server";
+import { loadRecordingTargetForViewer } from "@/lib/recording/recordingTargetAccess.server";
 
 export const runtime = "nodejs";
 
@@ -289,9 +291,38 @@ export async function POST(request: Request) {
     );
   }
 
+  // #216 (KD-4): the recording APIs are outside the proxy's region guard, so
+  // the visitor's country is checked here (D030, fail closed). A per-country
+  // restricted work hides its episodes from every non-author session
+  // (RESTRICTIVE RLS), so the target is authorized through the service role
+  // with the same select RLS applied, and generation reads with that client.
+  let regionBlocked: Response | null;
+  try {
+    regionBlocked = await regionBlockedApiResponse(request, seriesId);
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "作品の公開地域を確認できなかった。" },
+      { status: 503 }
+    );
+  }
+  if (regionBlocked) return regionBlocked;
+
+  const generationSupabase = createAdminClient();
+  const target = await loadRecordingTargetForViewer(generationSupabase, {
+    seriesId,
+    episodeId,
+    viewerId: user.id,
+  });
+  if (!target.ok) {
+    return NextResponse.json(
+      { ok: false, error: "対象話が見つからない。" },
+      { status: 404 }
+    );
+  }
+
   try {
     const result = await generateNemoRecordingForEpisode({
-      supabase,
+      supabase: generationSupabase,
       userId: user.id,
       seriesId,
       episodeId,

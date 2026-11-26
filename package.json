@@ -111,6 +111,8 @@
     "test:credit-pack-catalog": "node --import tsx scripts/test-credit-pack-catalog.ts",
     "test:public-search-request-context": "node --import tsx scripts/test-public-search-request-context.ts",
     "test:region-restriction-server": "node --import tsx scripts/test-region-restriction-server.ts",
+    "test:restricted-work-access": "node --import tsx scripts/test-restricted-work-access.ts",
+    "test:restricted-table-client-scan": "node --import tsx scripts/test-restricted-table-client-scan.ts",
     "test:content-rating-server": "node --import tsx scripts/test-content-rating-server.ts",
     "test:require-logged-in-user": "node --import tsx scripts/test-require-logged-in-user.ts",
     "test:require-owned-series": "node --import tsx scripts/test-require-owned-series.ts",

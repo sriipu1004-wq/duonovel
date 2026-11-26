@@ -25,6 +25,7 @@ import {
   type EpisodeRow,
 } from "@/features/write/writeShared";
 import { assertSeriesAvailableInRequestRegion } from "@/lib/rights/regionRestriction.server";
+import { loadRecordingEpisodesForViewer } from "@/lib/recording/recordingTargetAccess.server";
 
 type PageProps = {
   params: Promise<{ seriesId: string }>;
@@ -245,10 +246,14 @@ export default async function RecordCreateSeriesPage({ params }: PageProps) {
     .eq("id", seriesId)
     .maybeSingle();
 
-  const { data: episodeRows, error: episodesError } = await supabase
-    .from("episodes")
-    .select("*")
-    .eq("series_id", seriesId);
+  // #216 (KD-4): a per-country restricted work hides its episodes from every
+  // non-author session (D030 RESTRICTIVE RLS). The region was checked above,
+  // so read through the service role with the same select RLS applied.
+  const { episodes: episodeRows, error: episodesError } =
+    await loadRecordingEpisodesForViewer(adminSupabase, {
+      seriesId,
+      viewerId: user?.id ?? userId,
+    });
 
   if (episodesError) {
     console.error("Failed to load episodes for recording studio:", episodesError);

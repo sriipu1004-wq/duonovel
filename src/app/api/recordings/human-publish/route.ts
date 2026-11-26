@@ -14,6 +14,9 @@ import {
 } from "@/lib/recording/recordingEntry";
 import { publishHumanRecording } from "@/lib/recording/humanRecordingPublish";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { regionBlockedApiResponse } from "@/lib/rights/regionRestriction.server";
+import { loadRecordingTargetForViewer } from "@/lib/recording/recordingTargetAccess.server";
 import { readSelfChosenDisplayName } from "@/lib/auth/selfChosenDisplayName";
 import {
   RECORDING_GLOBAL_CONSENT_KEY,
@@ -421,6 +424,20 @@ export async function POST(request: Request) {
     );
   }
 
+  // #216 (KD-4): the recording APIs are outside the proxy's region guard,
+  // so the visitor's country is checked here (D030, fail closed), before the
+  // audio is analyzed.
+  let regionBlocked: Response | null;
+  try {
+    regionBlocked = await regionBlockedApiResponse(request, seriesId);
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "作品の公開地域を確認できなかった。" },
+      { status: 503 }
+    );
+  }
+  if (regionBlocked) return regionBlocked;
+
   const validationResult = await analyzeAudioUploadServer(audio);
 
   if (validationResult.decision !== "passed") {
@@ -434,23 +451,34 @@ export async function POST(request: Request) {
     );
   }
 
-  // Authorize the exact target with the session-bound client before handing the
-  // payload to service-role processing. This mirrors the page/RLS boundary:
-  // owners may access their own drafts, while other users only see public,
-  // posted works/episodes; recording_permission_mode must still be open.
-  const { data: accessibleSeries, error: accessibleSeriesError } = await supabase
-    .from("series")
-    .select("*")
-    .eq("id", seriesId)
-    .maybeSingle();
+  // Authorize the exact target before handing the payload to service-role
+  // processing. #216 (KD-4): a per-country restricted work hides its episodes
+  // from every non-author session (RESTRICTIVE RLS), so the target is read
+  // through the service role with the same select RLS applied in the query
+  // and in code: owners may access their own drafts, while other users only
+  // see public, posted works/episodes; recording_permission_mode must still
+  // be open.
+  const target = await loadRecordingTargetForViewer(createAdminClient(), {
+    seriesId,
+    episodeId,
+    viewerId: user.id,
+  });
 
-  if (accessibleSeriesError || !accessibleSeries) {
+  if (!target.ok) {
     return NextResponse.json(
-      { ok: false, error: "対象作品が見つからない。" },
+      {
+        ok: false,
+        error:
+          target.reason === "episode_not_accessible"
+            ? "対象話が見つからないか、この作品に属していない。"
+            : "対象作品が見つからない。",
+      },
       { status: 404 }
     );
   }
 
+  const accessibleSeries = target.series;
+  const accessibleEpisode = target.episode;
   const entryDecision = decideRecordingEntryAccess({
     permissionMode: normalizeRecordingPermissionMode(
       accessibleSeries.recording_permission_mode
@@ -461,24 +489,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: "この作品に対する朗読 publish 権限がない。" },
       { status: 403 }
-    );
-  }
-
-  const { data: accessibleEpisode, error: accessibleEpisodeError } =
-    await supabase
-      .from("episodes")
-      .select("*")
-      .eq("id", episodeId)
-      .maybeSingle();
-
-  if (
-    accessibleEpisodeError ||
-    !accessibleEpisode ||
-    String(accessibleEpisode.series_id) !== seriesId
-  ) {
-    return NextResponse.json(
-      { ok: false, error: "対象話が見つからないか、この作品に属していない。" },
-      { status: 404 }
     );
   }
 
