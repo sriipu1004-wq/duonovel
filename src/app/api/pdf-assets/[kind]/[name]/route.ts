@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
+import { isSafePdfAssetName, resolvePdfAssetFolder } from "@/lib/pdfAssets";
 
 export const runtime = "nodejs";
 
@@ -8,18 +9,11 @@ type RouteContext = {
   params: Promise<{ kind: string; name: string }>;
 };
 
-const ASSET_FOLDERS = {
-  cmaps: "cmaps",
-  standard_fonts: "standard_fonts",
-} as const;
-
-const SAFE_FILE_NAME = /^[A-Za-z0-9._-]+$/u;
-
 export async function GET(_request: Request, context: RouteContext) {
   const { kind, name } = await context.params;
-  const folder = ASSET_FOLDERS[kind as keyof typeof ASSET_FOLDERS];
+  const folder = resolvePdfAssetFolder(kind);
 
-  if (!folder || !SAFE_FILE_NAME.test(name)) {
+  if (!folder || !isSafePdfAssetName(name)) {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
 

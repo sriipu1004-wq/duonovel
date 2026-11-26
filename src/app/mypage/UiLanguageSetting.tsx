@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { UI_LOCALES, UI_LOCALE_COOKIE, uiLocaleLabel, type UiLocale } from "@/i18n/config";
+import { UI_LOCALES, uiLocaleLabel, type UiLocale } from "@/i18n/config";
+import { writeUiLocaleCookie } from "@/i18n/uiLocaleCookie";
 import { localizePath } from "@/i18n/navigation";
 import { useUiLocale } from "@/i18n/UiLocaleProvider";
 
@@ -29,7 +30,7 @@ export default function UiLanguageSetting() {
   const text = labels[locale];
 
   function selectLocale(nextLocale: UiLocale) {
-    document.cookie = `${UI_LOCALE_COOKIE}=${nextLocale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    writeUiLocaleCookie(nextLocale);
     const suffix = `${window.location.search}${window.location.hash}`;
     const nextPath = localizePath(`${pathname}${suffix}`, nextLocale);
     window.location.assign(nextPath);

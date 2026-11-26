@@ -47,6 +47,21 @@ async function fetchSeriesByAuthorIds(authorIds: string[]): Promise<{ rows: Work
   return { rows: [], error: lastError || "作品情報を取得できない。" };
 }
 
+// KD-2: author_follows / reader_card_likes have RLS with no policies, so the
+// browser client always reads them as empty. The server route reads them for
+// the signed-in user taken from the session cookie.
+async function fetchViewerSocialTargets(kind: "followed-authors" | "liked-readers"): Promise<{ targets: Array<{ targetId: string; createdAt: string }>; error: string }> {
+  try {
+    const response = await fetch(`/api/me/social-targets?filter=${encodeURIComponent(kind)}`, { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) return { targets: [], error: response.status === 401 ? "ログイン状態を確認できない。" : `HTTP ${response.status}` };
+    const body = (await response.json()) as { targets?: unknown };
+    const targets = Array.isArray(body.targets) ? body.targets.map((item) => { const row = (item ?? {}) as Record<string, unknown>; return { targetId: text(row.targetId), createdAt: text(row.createdAt) }; }).filter((item) => item.targetId) : [];
+    return { targets, error: "" };
+  } catch (error) {
+    return { targets: [], error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 async function loadFilterTargets(filter: SavedFilter, userId: string): Promise<{ seriesIds: string[]; authorIds: string[]; addedAt: Map<string, string>; error: string }> {
   const addedAt = new Map<string, string>();
   if (filter === "bookmarked-works") {
@@ -56,9 +71,9 @@ async function loadFilterTargets(filter: SavedFilter, userId: string): Promise<{
     return { seriesIds, authorIds: [], addedAt, error: "" };
   }
   if (filter === "followed-authors") {
-    const result = await supabase.from("author_follows").select("followed_author_id, created_at").eq("follower_user_id", userId);
-    if (result.error) return { seriesIds: [], authorIds: [], addedAt, error: result.error.message };
-    return { seriesIds: [], authorIds: ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => text(row.followed_author_id)).filter(Boolean), addedAt, error: "" };
+    const result = await fetchViewerSocialTargets("followed-authors");
+    if (result.error) return { seriesIds: [], authorIds: [], addedAt, error: result.error };
+    return { seriesIds: [], authorIds: result.targets.map((target) => target.targetId), addedAt, error: "" };
   }
   if (filter === "liked-works") {
     const result = await supabase.from("user_series_reactions").select("series_id, created_at").eq("user_id", userId).eq("reaction_type", "support");
@@ -66,9 +81,9 @@ async function loadFilterTargets(filter: SavedFilter, userId: string): Promise<{
     const seriesIds = ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => { const id = text(row.series_id); if (id) addedAt.set(id, text(row.created_at)); return id; }).filter(Boolean);
     return { seriesIds, authorIds: [], addedAt, error: "" };
   }
-  const result = await supabase.from("reader_card_likes").select("series_id, created_at").eq("user_id", userId);
-  if (result.error) return { seriesIds: [], authorIds: [], addedAt, error: result.error.message };
-  const seriesIds = ((result.data ?? []) as Array<Record<string, unknown>>).map((row) => { const id = text(row.series_id); if (id) addedAt.set(id, text(row.created_at)); return id; }).filter(Boolean);
+  const result = await fetchViewerSocialTargets("liked-readers");
+  if (result.error) return { seriesIds: [], authorIds: [], addedAt, error: result.error };
+  const seriesIds = result.targets.map((target) => { addedAt.set(target.targetId, target.createdAt); return target.targetId; });
   return { seriesIds, authorIds: [], addedAt, error: "" };
 }
 

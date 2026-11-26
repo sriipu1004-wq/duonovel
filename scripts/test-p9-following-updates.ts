@@ -330,11 +330,19 @@ async function loaderTests() {
     /from\("user_series_bookmarks"\)\.select\("user_id, series_id"\)\.eq\("user_id", userId\)/,
     "bookmarks are read for the viewer only"
   );
+  // KD-2: author_follows has RLS with no policies; follows come from the
+  // server reader for the auth.getUser() user, which must equal userId.
   assert.match(
     loader,
-    /from\("author_follows"\)\s*\.select\("follower_user_id, followed_author_id"\)\s*\.eq\("follower_user_id", userId\)/,
-    "follows are read for the viewer only"
+    /readViewerSocialTargets\(\{ supabase, kind: "followed-authors" \}\)/,
+    "follows are read for the verified viewer only"
   );
+  assert.match(
+    loader,
+    /!follows\.result\.signedIn \|\| follows\.result\.userId !== userId/,
+    "follows of any other user are refused"
+  );
+  assert.doesNotMatch(loader, /from\("author_follows"\)/, "no session read of author_follows");
   assert.match(
     loader,
     /from\("play_logs"\)\s*\.select\("user_id, series_id, episode_number"\)\s*\.eq\("user_id", userId\)/,

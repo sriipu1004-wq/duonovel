@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { getOperatorEmails, isOperatorUser } from "../src/lib/auth/operator";
 
-// Characterization test: pins current behavior only (LT-002). Synthetic addresses only.
+// Operator emails come only from the server-side LIBREAD_OPERATOR_EMAILS
+// (KD-13). The NEXT_PUBLIC_ name is never read. Synthetic addresses only.
 
 const saved = {
   server: process.env.LIBREAD_OPERATOR_EMAILS,
@@ -29,13 +30,15 @@ try {
   assert.equal(isOperatorUser(null), false);
   assert.equal(isOperatorUser(undefined), false);
 
-  // Server variable wins over NEXT_PUBLIC_ when both are set.
+  // The server variable is used when both are set.
   setEnv("server@example.invalid", "public@example.invalid");
   assert.deepEqual(getOperatorEmails(), ["server@example.invalid"]);
+  assert.equal(isOperatorUser("public@example.invalid"), false);
 
-  // NEXT_PUBLIC_ is used only when the server variable is unset (not when it is empty).
+  // Regression (KD-13): NEXT_PUBLIC_ alone grants nothing.
   setEnv(undefined, "public@example.invalid");
-  assert.deepEqual(getOperatorEmails(), ["public@example.invalid"]);
+  assert.deepEqual(getOperatorEmails(), []);
+  assert.equal(isOperatorUser("public@example.invalid"), false);
   setEnv("", "public@example.invalid");
   assert.deepEqual(getOperatorEmails(), []);
   assert.equal(isOperatorUser("public@example.invalid"), false);
@@ -43,4 +46,4 @@ try {
   setEnv(saved.server, saved.pub);
 }
 
-console.log("PASS: operator emails (parsing, normalization, env precedence)");
+console.log("PASS: operator emails (parsing, normalization, server-only env)");

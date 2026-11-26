@@ -29,13 +29,24 @@ const TEXT_TOKEN_PRICES_USD: Record<string, TextTokenPricesUsd> = {
   },
 };
 
+// Unknown model names are estimated at the highest input and output prices in
+// the table, so a cost estimate is never lower than any listed model.
+const CONSERVATIVE_TEXT_TOKEN_PRICES_USD: TextTokenPricesUsd = {
+  inputPer1mTokens: Math.max(
+    ...Object.values(TEXT_TOKEN_PRICES_USD).map((p) => p.inputPer1mTokens)
+  ),
+  outputPer1mTokens: Math.max(
+    ...Object.values(TEXT_TOKEN_PRICES_USD).map((p) => p.outputPer1mTokens)
+  ),
+};
+
 export function getDefaultTextTokenPricesUsd(
   model: string
 ): TextTokenPricesUsd {
-  return (
-    TEXT_TOKEN_PRICES_USD[model] ??
-    TEXT_TOKEN_PRICES_USD["gpt-4.1-mini"]
-  );
+  const prices = Object.hasOwn(TEXT_TOKEN_PRICES_USD, model)
+    ? TEXT_TOKEN_PRICES_USD[model]
+    : CONSERVATIVE_TEXT_TOKEN_PRICES_USD;
+  return { ...prices };
 }
 
 export function getTranslationReasoning(model: string):

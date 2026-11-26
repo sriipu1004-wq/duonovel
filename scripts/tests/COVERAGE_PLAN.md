@@ -16,13 +16,14 @@
 | `src/lib/seo/jaSearchDiscovery.ts` | `scripts/test-ja-search-discovery.ts` | `test:ja-search-discovery` | 2026-11-25 | PASS、tsc PASS。既存の `test:public-seo-alignment` はソースの文字列を見るだけで、関数は動かしていなかった |
 | `src/lib/bgm/bgmSettings.ts` | `scripts/test-bgm-settings.ts` | `test:bgm-settings` | 2026-11-25 | PASS、tsc PASS。`clampBgmSeconds` は空白だけの文字列・`[]` を 0、`true` を 1 にする（`Number()` の変換。不具合とまでは言えないので記録だけ） |
 | `src/lib/effects/effectSettings.ts` | `scripts/test-effect-settings.ts` | `test:effect-settings` | 2026-11-25 | PASS、tsc PASS。挿絵の `imageUrl` は前後の空白を取るだけで、URL の形式は見ていない（今の挙動として固定） |
-| `src/lib/auth/operator.ts` | `scripts/test-auth-operator.ts` | `test:auth-operator` | 2026-11-25 | PASS、tsc PASS。`LIBREAD_OPERATOR_EMAILS` が無いときだけ `NEXT_PUBLIC_LIBREAD_OPERATOR_EMAILS` を使う（空文字なら使わない）。`NEXT_PUBLIC_` の名前はブラウザ用の bundle に入りうる名前（実際に入っているかは見ていない） |
+| `src/lib/auth/operator.ts` | `scripts/test-auth-operator.ts` | `test:auth-operator` | 2026-11-26 | PASS、tsc PASS。KD-13 で `LIBREAD_OPERATOR_EMAILS` だけを読むように変えた（`NEXT_PUBLIC_LIBREAD_OPERATOR_EMAILS` は読まない。回帰テストあり） |
 | `src/lib/aiUsage/aiUsage.ts` | `scripts/test-ai-usage-format.ts` | `test:ai-usage-format` | 2026-11-25 | PASS、tsc PASS |
-| `src/lib/translation/openAITranslationModel.ts` | `scripts/test-openai-translation-model.ts` | `test:openai-translation-model` | 2026-11-25 | PASS、tsc PASS。表に無いモデル名は gpt-4.1-mini の単価になる（高いモデルを環境変数で指定すると原価の見積もりが低く出うる。記録だけ） |
+| `src/lib/translation/openAITranslationModel.ts` | `scripts/test-openai-translation-model.ts` | `test:openai-translation-model` | 2026-11-26 | PASS、tsc PASS。KD-13 で、表に無いモデル名は表の中で最も高い入力・出力単価で見積もるように変えた（回帰テストあり） |
+| `src/lib/pdfAssets.ts`、`src/app/api/pdf-assets/[kind]/[name]/route.ts` | `scripts/test-pdf-assets-route.ts` | `test:pdf-assets-route` | 2026-11-26 | PASS、tsc PASS。KD-10 で入力の検査を足した（表に無い `kind` は 404。回帰テストあり） |
 | `src/lib/recording/audioUploadServerValidation.ts` | `scripts/test-audio-upload-server-validation.ts` | `test:audio-upload-server-validation` | 2026-11-25 | PASS、tsc PASS。拡張子・MIME が表に無いと照合をしない（例 `a.bin`＋`audio/x-custom` の WAV は通る） |
 | `src/lib/recording/nemoWav.ts` | `scripts/test-nemo-wav.ts` | `test:nemo-wav` | 2026-11-25 | PASS、tsc PASS（16bit の合成 PCM で確認） |
 | `src/lib/library/zipBook.ts` | `scripts/test-zip-book.ts` | `test:zip-book` | 2026-11-25 | PASS、tsc PASS。展開前の大きさの上限は ZIP の目次に書かれた値で見る（目次の値が偽のときの挙動は確かめていない） |
-| `src/lib/recording/humanRecordingAlignment.ts` | `scripts/test-human-recording-alignment.ts` | `test:human-recording-alignment` | 2026-11-25 | PASS、tsc PASS（1文ずつのセグメントの場合だけ固定。下の不具合の疑いを参照） |
+| `src/lib/recording/humanRecordingAlignment.ts` | `scripts/test-human-recording-alignment.ts` | `test:human-recording-alignment` | 2026-11-25 | PASS、tsc PASS（1文ずつのセグメントの場合を固定。複数の文が入ったセグメントは PR #238 で直し、回帰テストを足した） |
 | `src/lib/seo/currentSearchDiscovery.ts` | `scripts/test-current-search-discovery.ts` | `test:current-search-discovery` | 2026-11-25 | PASS、tsc PASS |
 | `src/lib/effects/effectTextLayout.ts` | `scripts/test-effect-text-layout.ts` | `test:effect-text-layout` | 2026-11-25 | PASS、tsc PASS。短い場面転換のきっかけ（例「見当」）や文の一部だけのタイムスタンプは、しきい値（0.12・長さの比 0.55）に届かず捨てられる（今の挙動として固定） |
 | `src/lib/authorFollow.ts` | `scripts/test-author-follow.ts` | `test:author-follow` | 2026-11-25 | PASS、tsc PASS（Supabase は呼び出しを記録するモック） |
@@ -94,11 +95,14 @@
   - 再現（`maxChars` は既定）: `buildNemoChunks("「こんにちは」と彼は言った。")` → chunk の `text` が `「こんにちは」、と彼は言った。` と `と彼は言った。` の2つ（後半が重複）。`buildNemoChunks("そして――彼は去った")` → `そして、彼は去った` と `彼は去った`。
   - 影響の範囲（コードを読んだだけ）: `nemoGeneration.ts`、`nemoAutoGeneration.ts`、`nemoGenerationQueue.ts`、`aivisGeneration.ts` が使う自動朗読（TTS）の生成。生成の route（`src/app/api/recordings/nemo-generate/route.ts:286`、`aivis-generate/route.ts:281`）には `ai_narration_generation_suspended` を返す分岐があり、今は止めている可能性が高い（本番の設定は見ていない）。実際の音声で重複するかは未検証。
   - この形の振る舞いを固定するテストは足さない（不具合を固定してしまうため）。直すかどうかはオーナーの判断。
+  - 直した（PR #242、KD-9）: 原文の文ごとに読み上げ用の前処理をかけて1対1にした。上の2つの再現例は `scripts/test-nemo-chunking.ts`（`test:nemo-chunking`）の回帰テストになった。会話文・`――` を含む話は本文のハッシュが変わる（自動朗読の生成は停止中のため、今は再生成は起きない。再開前に量の見積もりが要る）。
 - `src/lib/recording/nemoWav.ts` の `concatNemoWavs`（2026-11-25、軽い。テストは足していない）
   - 内容: 間（ポーズ）の無音を、ビット深度にかかわらず 0 のバイトで作る（`createSilencePcm`）。16bit なら 0 が無音で正しいが、8bit の PCM は 128 が無音なので、8bit の WAV をつなぐと間が最大の負の値になり、雑音になりうる。
   - 再現: 8bit・モノラル・8Hz の合成 WAV（データ `[128, 128]`）に `pauseAfterMs: 250` を付けてつなぐと、データが `[128, 128, 0, 0]` になる。
   - 影響（推定）: Nemo・Aivis の出力が 16bit なら影響は無い。出力のビット深度は確かめていない。今の挙動の 16bit 部分だけをテストで固定した。
+  - 直した（PR #242、KD-9）: 8bit のときは 128 で埋める。`scripts/test-nemo-wav.ts` に 8bit の回帰テストを足した。
 - `src/lib/recording/humanRecordingAlignment.ts` の `alignHumanRecordingToBodyOrThrow`（2026-11-25、テストは足していない）
   - 内容: 文字起こしの1つのセグメントに本文の2文以上が入っていると、その中の文がほとんど対応付かない。単語ごとの時刻を渡しても同じ。
   - 再現: 本文 `吾輩は猫である。名前はまだ無い。\n\nどこで生れたかとんと見当がつかぬ。`、セグメント `[0-3秒「吾輩は猫である。名前はまだ無い。」, 3.2-6秒「どこで生れたかとんと見当がつかぬ。」]` → 3文のうち1文だけが対応付き、`human_alignment_insufficient` で止まる（1文ずつのセグメントなら3文とも対応付く）。
   - 影響（推定）: Whisper などの文字起こしは、1つのセグメントに複数の文を入れることが多い。そのため人の朗読の時刻合わせが、実際の録音では失敗しやすい可能性がある。実際の録音・文字起こしでは確かめていない。短い合成の例での観察で、本番の失敗率は分からない。
+  - 直した（PR #238、KD-6）: 対応付けの前に、セグメントを本文と同じ分け方で文に分ける（単語の時刻があればそれで、無ければ文字数の比で時刻を割る）。上の再現例は `scripts/test-human-recording-alignment.ts` の回帰テストになった。実際の録音では未検証。
