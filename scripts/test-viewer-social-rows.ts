@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
+import { readFileSync } from "node:fs";
 import type { SocialRowsReader } from "../src/lib/social/viewerSocialRows";
 
 // KD-2 regression: the viewer's own follow / like rows are read on the server
@@ -136,6 +137,42 @@ async function main() {
       readViewerSocialTargets({ supabase: sessionClient, kind: "followed-authors" }),
       /^Error: author_follows: timeout$/
     );
+
+    // Reusing the page's own getUser() result: no second Auth call, same read.
+    const { readViewerSocialTargetsForAuthUser } = await import("../src/lib/social/viewerSocialRows.server");
+    let getUserCalls = 0;
+    const originalGetUser = session.auth.getUser;
+    session.auth.getUser = async () => {
+      getUserCalls += 1;
+      return originalGetUser();
+    };
+    state.adminCalls = [];
+    state.adminResults = {
+      author_profile_likes: { data: [{ user_id: "user-2", author_id: "a-1", created_at: "2026-11-06T00:00:00Z" }], error: null },
+    };
+    assert.deepEqual(await readViewerSocialTargetsForAuthUser({ authUser: { id: "user-2" }, kind: "liked-authors" }), {
+      signedIn: true,
+      userId: "user-2",
+      targets: [{ targetId: "a-1", createdAt: "2026-11-06T00:00:00Z" }],
+    });
+    assert.deepEqual(state.adminCalls, [
+      ["author_profile_likes", ["select", "user_id, author_id, created_at"], ["eq", "user_id", "user-2"]],
+    ]);
+    state.adminCalls = [];
+    assert.deepEqual(await readViewerSocialTargetsForAuthUser({ authUser: null, kind: "liked-authors" }), {
+      signedIn: false,
+      userId: null,
+      targets: [],
+    });
+    assert.deepEqual(state.adminCalls, []);
+    assert.equal(getUserCalls, 0);
+    session.auth.getUser = originalGetUser;
+
+    // Search reuses its single getUser() result for the saved filters.
+    const searchSource = readFileSync("src/app/search/SearchPageLegacy.tsx", "utf8");
+    assert.equal((searchSource.match(/\.auth\.getUser\(\)/g) ?? []).length, 1, "one getUser() in Search");
+    assert.doesNotMatch(searchSource, /readViewerSocialTargets\(/, "Search does not re-run getUser via the session reader");
+    assert.equal((searchSource.match(/authUser: verifiedUser/g) ?? []).length, 3, "three saved filters reuse the verified user");
 
     // Core: an unknown kind and an empty verified id are refused.
     await assert.rejects(

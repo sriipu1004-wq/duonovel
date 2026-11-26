@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { User } from "@supabase/supabase-js";
 import type { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAuthSessionMissingError } from "@/lib/auth/authSessionState";
@@ -21,6 +22,22 @@ type SessionClient = Awaited<ReturnType<typeof createClient>>;
  * then read with the service role, filtered by that id, columns limited to
  * owner, target id and created_at.
  */
+/**
+ * Same read for a caller that already ran auth.getUser() on its session in
+ * this request (avoids a second Auth round trip). Takes the Auth `User`
+ * object returned by getUser(), not a bare id; server code only.
+ */
+export async function readViewerSocialTargetsForAuthUser(args: {
+  authUser: Pick<User, "id"> | null;
+  kind: ViewerSocialKind;
+}): Promise<ViewerSocialResult> {
+  return readViewerSocialTargetsWith({
+    kind: args.kind,
+    getVerifiedViewer: async () => (args.authUser ? { userId: args.authUser.id } : null),
+    createReader: () => createAdminClient() as unknown as SocialRowsReader,
+  });
+}
+
 export async function readViewerSocialTargets(args: {
   supabase: SessionClient;
   kind: ViewerSocialKind;
