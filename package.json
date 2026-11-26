@@ -63,6 +63,7 @@
     "test:public-read-reliability-performance": "node --import tsx scripts/test-public-read-reliability-performance.ts",
     "test:public-fetch-timeout-diagnostics": "node --import tsx scripts/test-public-fetch-timeout-diagnostics.ts",
     "test:owned-series-server-save": "node --import tsx scripts/test-owned-series-server-save.ts",
+    "test:series-operator-effect-settings-guard": "node --import tsx scripts/test-series-operator-effect-settings-guard.ts",
     "test:series-effect-settings-operator-keys": "node --import tsx scripts/test-series-effect-settings-operator-keys.ts",
     "test:owned-series-create":"node --import tsx scripts/test-owned-series-create.ts",
     "test:owned-episode-server-save": "node --import tsx scripts/test-owned-episode-server-save.ts",
