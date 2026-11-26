@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminPublicReadClient } from "@/lib/supabase/admin";
 import { loadRegionRestrictionMap } from "@/lib/rights/regionRestriction.server";
 import {
   isEpisodePostedAndPublished,
@@ -21,10 +21,12 @@ import {
 //   recordings: is_public = true, on such an episode of such a series.
 // Only aggregate inputs leave this module (ids, counts); no body text.
 //
-// A failure to read the restriction list leaves the restricted works out
-// (the previous behaviour) instead of failing the whole catalog read.
+// Every read here shares the anon catalog read deadline
+// (createAdminPublicReadClient). Any failure (restriction list, timeout, query
+// error) returns no supplement, logged, so the catalog read itself never
+// fails because of it: restricted works are then left out, as before #216.
 
-type AdminSupabase = ReturnType<typeof createAdminClient>;
+type AdminSupabase = ReturnType<typeof createAdminPublicReadClient>;
 type RawRow = Record<string, unknown>;
 
 const ID_CHUNK = 100;
@@ -79,13 +81,13 @@ async function fetchPublicSeriesIds(admin: AdminSupabase, seriesIds: string[]): 
  * Posted, published episodes of the public restricted works among `seriesIds`
  * (anon RLS episodes_public_or_owner_select, non-author branch).
  */
-export async function fetchRestrictedPublicEpisodes(
+async function readRestrictedPublicEpisodes(
   seriesIds: string[],
   selectClause: string
 ): Promise<RawRow[]> {
   const restricted = await listRestrictedSeriesIds(seriesIds);
   if (restricted.length === 0) return [];
-  const admin = createAdminClient();
+  const admin = createAdminPublicReadClient();
   const publicSeries = await fetchPublicSeriesIds(admin, restricted);
   if (publicSeries.size === 0) return [];
 
@@ -124,14 +126,14 @@ export async function fetchRestrictedPublicEpisodes(
  * would return them: is_public, on a posted, published episode that belongs
  * to the recording's public series. `humanOnly` only narrows the query.
  */
-export async function fetchRestrictedPublicRecordings(
+async function readRestrictedPublicRecordings(
   seriesIds: string[] | null,
   selectClause: string,
   options: { humanOnly?: boolean } = {}
 ): Promise<RawRow[]> {
   const restricted = await listRestrictedSeriesIds(seriesIds);
   if (restricted.length === 0) return [];
-  const admin = createAdminClient();
+  const admin = createAdminPublicReadClient();
   const publicSeries = await fetchPublicSeriesIds(admin, restricted);
   if (publicSeries.size === 0) return [];
   const seriesList = Array.from(publicSeries).sort();
@@ -180,4 +182,47 @@ export async function fetchRestrictedPublicRecordings(
       publication_status: "public",
     });
   });
+}
+
+function logSupplementFailure(kind: "episodes" | "recordings", error: unknown): void {
+  // A fixed label and the error class only; no ids, URLs or messages.
+  console.warn("[restricted-work-public-reads] supplement skipped", {
+    kind,
+    error: error instanceof Error ? error.name : "unknown",
+  });
+}
+
+/**
+ * Posted, published episodes of the public restricted works among `seriesIds`
+ * (anon RLS episodes_public_or_owner_select, non-author branch). Never throws:
+ * a failure returns [] and is logged.
+ */
+export async function fetchRestrictedPublicEpisodes(
+  seriesIds: string[],
+  selectClause: string
+): Promise<RawRow[]> {
+  try {
+    return await readRestrictedPublicEpisodes(seriesIds, selectClause);
+  } catch (error) {
+    logSupplementFailure("episodes", error);
+    return [];
+  }
+}
+
+/**
+ * Public recordings of the public restricted works (see
+ * readRestrictedPublicRecordings). Never throws: a failure returns [] and is
+ * logged.
+ */
+export async function fetchRestrictedPublicRecordings(
+  seriesIds: string[] | null,
+  selectClause: string,
+  options: { humanOnly?: boolean } = {}
+): Promise<RawRow[]> {
+  try {
+    return await readRestrictedPublicRecordings(seriesIds, selectClause, options);
+  } catch (error) {
+    logSupplementFailure("recordings", error);
+    return [];
+  }
 }

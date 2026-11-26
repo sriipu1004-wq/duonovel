@@ -714,25 +714,20 @@ const RESTRICTED_RECORDING_AGGREGATE_SELECT = `${PUBLIC_RECORDING_AGGREGATE_SELE
  * #216 (KD-4): public recordings of per-country restricted works (D030),
  * which anon RLS hides although the works stay public. Read through the
  * service role ONLY for those works, with recordings_select_public_visible
- * written out in the query and re-checked in code. A failure leaves them out
- * (the previous behaviour) instead of failing the catalog.
+ * written out in the query and re-checked in code, under the same read
+ * deadline as the anon read. A failure leaves them out (the previous
+ * behaviour) instead of failing the catalog.
  */
 async function fetchRestrictedRecordingAggregateRows(
   normalizedSeriesIds: string[]
 ): Promise<RecordingAggregateRow[]> {
-  try {
-    const rows = await fetchRestrictedPublicRecordings(
-      normalizedSeriesIds.length > 0 ? normalizedSeriesIds : null,
-      RESTRICTED_RECORDING_AGGREGATE_SELECT,
-      { humanOnly: true }
-    );
-    return rows as unknown as RecordingAggregateRow[];
-  } catch (error) {
-    console.warn("[public-recording-aggregates] restricted works skipped", {
-      message: error instanceof Error ? error.name : "unknown",
-    });
-    return [];
-  }
+  // Never throws: a failure returns no supplement (logged there).
+  const rows = await fetchRestrictedPublicRecordings(
+    normalizedSeriesIds.length > 0 ? normalizedSeriesIds : null,
+    RESTRICTED_RECORDING_AGGREGATE_SELECT,
+    { humanOnly: true }
+  );
+  return rows as unknown as RecordingAggregateRow[];
 }
 
 async function buildPublicRecordingAggregates(seriesIds?: string[]): Promise<PublicRecordingAggregate[]> {

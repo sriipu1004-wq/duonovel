@@ -15,6 +15,7 @@ type Call = { table: string; select: string; filters: Filter[] };
 const db: Record<string, Row[]> = { series: [], episodes: [], recordings: [] };
 const calls: Call[] = [];
 const regionState: { map: Map<string, unknown>; fail: boolean } = { map: new Map(), fail: false };
+const state = { publicReadClients: 0, failTable: null as string | null };
 
 function matches(row: Row, filter: Filter): boolean {
   const value = row[filter.column];
@@ -60,7 +61,10 @@ function builder(table: string) {
       const rows = run();
       return Promise.resolve({ data: rows[0] ?? null, error: null });
     },
-    then(resolve: (value: { data: Row[]; error: null }) => unknown, reject?: (e: unknown) => unknown) {
+    then(resolve: (value: { data: Row[] | null; error: { message: string } | null }) => unknown, reject?: (e: unknown) => unknown) {
+      if (state.failTable === table) {
+        return Promise.resolve({ data: null, error: { message: "timeout" } }).then(resolve, reject);
+      }
       return Promise.resolve({ data: run(), error: null }).then(resolve, reject);
     },
   };
@@ -76,7 +80,13 @@ const originalLoad = moduleWithLoad._load;
 moduleWithLoad._load = function (request, parent, isMain) {
   if (request === "server-only") return {};
   if (request === "@/lib/supabase/admin" || request.endsWith("/lib/supabase/admin")) {
-    return { createAdminClient: () => adminClient };
+    return {
+      createAdminClient: () => adminClient,
+      createAdminPublicReadClient: () => {
+        state.publicReadClients += 1;
+        return adminClient;
+      },
+    };
   }
   if (request === "@/lib/rights/regionRestriction.server" || request.endsWith("/rights/regionRestriction.server")) {
     return {
@@ -253,6 +263,27 @@ async function main() {
 
   const restrictedEpisodes = await reads.fetchRestrictedPublicEpisodes([RESTRICTED, PRIVATE_RESTRICTED, FREE], "*");
   assert.deepEqual(restrictedEpisodes.map((e) => e.id), ["ep-posted"]);
+
+  // Supplements use the service role with the anon read deadline.
+  assert.ok(state.publicReadClients > 0, "supplements use createAdminPublicReadClient");
+  const adminSource = source("src/lib/supabase/admin.ts");
+  const deadlineClient = adminSource.slice(adminSource.indexOf("export function createAdminPublicReadClient"));
+  assert.ok(deadlineClient.includes("fetch: publicReadFetch"), "same deadline as the anon catalog client");
+  assert.equal(
+    source("src/lib/rights/restrictedWorkPublicReads.server.ts").includes("createAdminClient()"),
+    false,
+    "no supplement read without the deadline"
+  );
+
+  // A failed or timed-out supplement read returns no supplement; it never throws.
+  for (const table of ["series", "recordings", "episodes"]) {
+    state.failTable = table;
+    assert.deepEqual(await reads.fetchRestrictedPublicRecordings(null, "*"), [], `recordings supplement, ${table} fails`);
+    if (table !== "recordings") {
+      assert.deepEqual(await reads.fetchRestrictedPublicEpisodes([RESTRICTED], "*"), [], `episodes supplement, ${table} fails`);
+    }
+  }
+  state.failTable = null;
 
   regionState.fail = true;
   assert.deepEqual(await reads.fetchRestrictedPublicRecordings(null, "*"), [], "unreadable list leaves restricted works out");
