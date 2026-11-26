@@ -1,4 +1,4 @@
--- Transactional checks for 20261126120000_issue221_guard_series_operator_effect_settings.sql
+-- Transactional checks for 20261126121000_issue221_guard_series_operator_effect_settings.sql
 -- (Issue #221 / KD-3). LOCAL / disposable databases only.
 --
 -- Prerequisites (local stack from scripts/dev/local-supabase.sh, see

@@ -1,18 +1,18 @@
 /**
  * Issue #221 / KD-3 (PR-B) static contract for the series operator
  * effect_settings guard migration. The DB behaviour itself is checked by
- * supabase/verification/20261126120000_test_guard_series_operator_effect_settings.sql
+ * supabase/verification/20261126121000_test_guard_series_operator_effect_settings.sql
  * on a local stack; this test only pins the migration's shape.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const sql = readFileSync(
-  "supabase/migrations/20261126120000_issue221_guard_series_operator_effect_settings.sql",
+  "supabase/migrations/20261126121000_issue221_guard_series_operator_effect_settings.sql",
   "utf8"
 ).toLowerCase();
 const verification = readFileSync(
-  "supabase/verification/20261126120000_test_guard_series_operator_effect_settings.sql",
+  "supabase/verification/20261126121000_test_guard_series_operator_effect_settings.sql",
   "utf8"
 ).toLowerCase();
 
@@ -36,6 +36,24 @@ assert.ok(
     "revoke execute on function public.guard_series_operator_effect_settings() from public, anon, authenticated"
   )
 );
+// Review S2: no separate helper function that clients could call as an RPC;
+// the trigger function is the only function this migration creates.
+assert.equal((sqlCode.match(/create\s+(or\s+replace\s+)?function/g) ?? []).length, 1);
+assert.equal(sqlCode.includes("series_effect_settings_object"), false);
+assert.ok(sqlCode.includes("jsonb_typeof(v_raw) = 'string'"), "legacy string rows still normalised");
+// Review S1: version must not collide with other migrations.
+assert.ok(
+  !readdirSync("supabase/migrations").some(
+    (name) => name.startsWith("20261126121000_") && !name.includes("issue221_guard_series_operator_effect_settings")
+  ),
+  "migration version 20261126121000 is unique"
+);
+assert.equal(
+  new Set(readdirSync("supabase/migrations").map((name) => name.split("_")[0])).size,
+  readdirSync("supabase/migrations").length,
+  "no two migrations share a version"
+);
+
 // No data change and not marked as applied.
 assert.equal(/\bupdate\s+public\.series\b/.test(sqlCode), false);
 assert.equal(/\bdelete\s+from\b/.test(sqlCode), false);
