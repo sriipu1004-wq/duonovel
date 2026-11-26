@@ -38,11 +38,11 @@
 | `public.series_view_events` | `20260404113000_create_popularity_event_tables.sql:36` | 0 | `src/app/api/popularity/events/route.ts` [admin]、`src/lib/popularityIngest.ts` [admin] | 閲覧の記録。サーバーだけ | 意図して閉じている（推定） |
 | `public.time_fit_story_continuation_reservations` | `20260805150000_add_ai_story_continuations.sql:52` | 0 | なし | AI 小説生成（廃止済み）の名残 | 意図して閉じている（推定）。残すかはオーナー判断 |
 | `public.time_fit_story_prompt_tag_usage` | `20260809070000_add_time_fit_prompt_tag_usage.sql:12` | 0 | なし | 同上 | 意図して閉じている（推定） |
-| `public.author_follows` | migration に RLS 有効化の文が無い（作成は `20260422013000_add_profile_links_and_social_relations.sql:7`） | 0 | `src/features/bookmark/SavedWorkSearchClient.tsx:59` [client] がブラウザから `follower_user_id` で読む。書き込みは `src/app/api/authors/follow/route.ts` [admin] | ブラウザから自分の行を読める必要がある | 要確認。本番で RLS が無効ならフォロー関係を誰でも読める。有効なら、migration に無い SELECT ポリシーがあるはず |
-| `public.author_profile_likes` | migration に RLS 有効化の文が無い（作成は `20260422013000_add_profile_links_and_social_relations.sql:21`） | 0 | `src/app/api/authors/like/route.ts` [admin]、`src/lib/authorProfileLike.ts`、`src/app/search/SearchPageLegacy.tsx` | いいねの数・自分のいいね | 要確認（本番の RLS とポリシーを migration に残しているか） |
-| `public.reader_card_likes` | migration に RLS 有効化の文が無い（作成は `20260422013000_add_profile_links_and_social_relations.sql:35`） | 0 | `src/features/bookmark/SavedWorkSearchClient.tsx:69` [client] がブラウザから `user_id` で読む。書き込みは `src/app/api/readers/like/route.ts` [admin] | ブラウザから自分の行を読める必要がある | 要確認（`author_follows` と同じ） |
-| `public.bgm_library_favorites` | migration に RLS 有効化の文が無い（作成は `20260331143000_add_bgm_library_favorites.sql:3`） | 0 | `src/lib/bgm/bgmLibrary.ts:160`（呼び出し側のクライアント次第） | 自分のお気に入り | 要確認 |
-| `public.nemo_generation_queue` | migration に RLS 有効化の文が無い（作成は `20260421183000_add_nemo_generation_queue.sql:1`） | 0 | `src/lib/recording/nemoAutoGeneration.ts` [admin]、`src/lib/recording/nemoGenerationQueue.ts` [admin] | サーバーだけの作業キュー | 要確認。本番で RLS が無効で anon/authenticated に権限が残っていれば、キューを読み書きできる |
+| `public.author_follows` | migration に RLS 有効化の文が無い（作成は `20260422013000_add_profile_links_and_social_relations.sql:7`） | 0 | `src/features/bookmark/SavedWorkSearchClient.tsx:59` [client] がブラウザから `follower_user_id` で読む。書き込みは `src/app/api/authors/follow/route.ts` [admin] | ブラウザから自分の行を読める必要がある | 本番で RLS 有効・ポリシー0件を確認（2026-11-26）。誰も読み書きできない。ブラウザからの読み取りは空になる（機能の不具合の疑い）。migration に RLS の文が無い |
+| `public.author_profile_likes` | migration に RLS 有効化の文が無い（作成は `20260422013000_add_profile_links_and_social_relations.sql:21`） | 0 | `src/app/api/authors/like/route.ts` [admin]、`src/lib/authorProfileLike.ts`、`src/app/search/SearchPageLegacy.tsx` | いいねの数・自分のいいね | 本番で RLS 有効・ポリシー0件を確認（2026-11-26）。サーバーだけ。migration に RLS の文が無い |
+| `public.reader_card_likes` | migration に RLS 有効化の文が無い（作成は `20260422013000_add_profile_links_and_social_relations.sql:35`） | 0 | `src/features/bookmark/SavedWorkSearchClient.tsx:69` [client] がブラウザから `user_id` で読む。書き込みは `src/app/api/readers/like/route.ts` [admin] | ブラウザから自分の行を読める必要がある | 本番で RLS 有効・ポリシー0件を確認（2026-11-26）。誰も読み書きできない。ブラウザからの読み取りは空になる（機能の不具合の疑い）。migration に RLS の文が無い |
+| `public.bgm_library_favorites` | migration に RLS 有効化の文が無い（作成は `20260331143000_add_bgm_library_favorites.sql:3`） | 0 | `src/lib/bgm/bgmLibrary.ts:160`（呼び出し側のクライアント次第） | 自分のお気に入り | 本番で RLS 有効、自分の行だけのポリシー3件を確認（2026-11-26）。migration に RLS の文が無い |
+| `public.nemo_generation_queue` | migration に RLS 有効化の文が無い（作成は `20260421183000_add_nemo_generation_queue.sql:1`） | 0 | `src/lib/recording/nemoAutoGeneration.ts` [admin]、`src/lib/recording/nemoGenerationQueue.ts` [admin] | サーバーだけの作業キュー | 本番で RLS 有効・ポリシー0件を確認（2026-11-26）。サーバーだけ。migration に RLS の文が無い |
 
 ## 2. SECURITY DEFINER 関数
 
@@ -97,7 +97,7 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/account/delete/route.ts` | POST | `:20` | 自動抽出で見つからず | admin なし | ログイン必須。本人のアカウントだけ（所有者の比較はなく、getUser の本人が対象） |
 | `src/app/api/account/display-name/check/route.ts` | POST | `:54` | 自動抽出で見つからず | admin あり | ログインの状態を見る。名前の重複確認 |
 | `src/app/api/account/email/check/route.ts` | POST | 見つからず | 自動抽出で見つからず | admin なし | 未認証で使える形式チェックだけ。メールアドレスの有無は返さない（コメント `:57-60`）。問題の疑いなし |
-| `src/app/api/account/email/prepare-signup/route.ts` | POST | 見つからず | 自動抽出で見つからず | admin なし | 未認証。登録前の準備。コメント `:57` 付近で第三者に存在を漏らさない方針を書いている。中身の admin API の呼び方は細かく見ていない。要確認（軽）: 回数制限の有無 |
+| `src/app/api/account/email/prepare-signup/route.ts` | POST | 見つからず | 自動抽出で見つからず | admin なし | 未認証。登録前の準備。コメント `:57` 付近で第三者に存在を漏らさない方針を書いている。中身の admin API の呼び方は細かく見ていない。軽い要確認の件あり（非公開で扱う） |
 | `src/app/api/account/google-consent/route.ts` | POST | `:59` | `:92` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/account/profile/route.ts` | POST | `:38` | 自動抽出で見つからず | admin あり | ログイン必須。本人のプロフィール |
 | `src/app/api/ai-usage/route.ts` | GET | `:10` | 自動抽出で見つからず | admin なし | `getAiUsageSnapshot(request)` の中で利用者を決める（`src/lib/aiUsage/aiUsage.server.ts`）。中身は見ていない。要確認（軽） |
@@ -127,8 +127,8 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
 | `src/app/api/library/works/[workId]/glossary/[termId]/route.ts` | DELETE | `:13` | `:26` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/library/works/[workId]/glossary/route.ts` | POST | `:45` | `:57` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/library/works/[workId]/route.ts` | PATCH,DELETE | `:33` | `:49`, `:79` | admin なし | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
-| `src/app/api/pdf-assets/[kind]/[name]/route.ts` | GET | 見つからず | 自動抽出で見つからず | admin なし | 未認証の静的ファイル（pdfjs の cmaps・fonts）。名前は `^[A-Za-z0-9._-]+$` で `/` を通さない。要確認（軽）: `kind` を `ASSET_FOLDERS[kind]` で引くため `__proto__`・`toString` などで `path.join` に文字列以外が渡り、try の外なので 404 でなく 500 になりうる（読める範囲は広がらない） |
-| `src/app/api/popularity/events/route.ts` | POST | `:18` | 自動抽出で見つからず | admin あり | ログインは任意（閲覧の記録）。admin で書く。要確認（軽）: 未ログインの大量送信の抑え方（`src/lib/popularityIngestGuard.ts` があり、テスト `test:popularity-ingest-guard` は PASS） |
+| `src/app/api/pdf-assets/[kind]/[name]/route.ts` | GET | 見つからず | 自動抽出で見つからず | admin なし | 未認証の静的ファイル（pdfjs の cmaps・fonts）。名前は `^[A-Za-z0-9._-]+$` で `/` を通さない。軽い要確認の件あり（非公開で扱う） |
+| `src/app/api/popularity/events/route.ts` | POST | `:18` | 自動抽出で見つからず | admin あり | ログインは任意（閲覧の記録）。admin で書く。軽い要確認の件あり（非公開で扱う） |
 | `src/app/api/public/work-language-counts/route.ts` | GET | 見つからず | 自動抽出で見つからず | admin なし | 未認証の公開集計。公開作品のキャッシュ（`getCachedPublicBaseWorkCards`）だけを数える。問題の疑いなし（公開判定は `src/lib/publicWorks.ts` 側） |
 | `src/app/api/readers/like/route.ts` | POST,DELETE | `:15` | `:82`, `:163` | admin あり | ログイン必須。本人・作者の確認あり（左の行）。問題の疑いなし（分岐の全部は見ていない） |
 | `src/app/api/recordings/ai-audio/[recordingId]/route.ts` | GET | `:59` | 自動抽出で見つからず | admin あり | `loadPrivateMediaSourceContext` と `canServePrivateAiNarration`、地域制限（`regionBlockedApiResponse`）の後に配信。テスト `test:private-media-playback-proxy` PASS |
@@ -159,6 +159,5 @@ migration の最後の定義で SECURITY DEFINER のまま残っている関数�
      - migration と本番の食い違い（RLS の有効化が migration に無い）。
      - ブラウザから直接読む2件（`author_follows`・`reader_card_likes`）は、ポリシーが無いため結果が空になる。機能の不具合の疑いで、安全の問題ではない。
 2. `private_library_word_explanations` を今も使っているか。
-3. `src/app/api/pdf-assets/[kind]/[name]/route.ts` で `kind` が `__proto__` などのとき 404 でなく 500 になりうる（`node -e` で `path.join` が `ERR_INVALID_ARG_TYPE` を投げることを確かめた。route そのものは動かしていない）。読める範囲は広がらない。
-4. 軽いもの: `account/email/prepare-signup` と `popularity/events` の回数制限、`ai-usage` の利用者の決め方（中身を見ていない）。
+3. 軽い要確認の件が数件ある。公開のリポジトリなので場所は書かず、非公開で扱う。
 - 廃止済みの AI 小説生成のテーブル（`generated_story_*`、`time_fit_*`）が残っている。閉じてはいるので危険ではないが、残すかはオーナー判断。
