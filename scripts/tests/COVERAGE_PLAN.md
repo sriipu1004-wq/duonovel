@@ -22,7 +22,7 @@
 | `src/lib/recording/audioUploadServerValidation.ts` | `scripts/test-audio-upload-server-validation.ts` | `test:audio-upload-server-validation` | 2026-11-25 | PASS、tsc PASS。拡張子・MIME が表に無いと照合をしない（例 `a.bin`＋`audio/x-custom` の WAV は通る） |
 | `src/lib/recording/nemoWav.ts` | `scripts/test-nemo-wav.ts` | `test:nemo-wav` | 2026-11-25 | PASS、tsc PASS（16bit の合成 PCM で確認） |
 | `src/lib/library/zipBook.ts` | `scripts/test-zip-book.ts` | `test:zip-book` | 2026-11-25 | PASS、tsc PASS。展開前の大きさの上限は ZIP の目次に書かれた値で見る（目次の値が偽のときの挙動は確かめていない） |
-| `src/lib/recording/humanRecordingAlignment.ts` | `scripts/test-human-recording-alignment.ts` | `test:human-recording-alignment` | 2026-11-25 | PASS、tsc PASS（1文ずつのセグメントの場合だけ固定。下の不具合の疑いを参照） |
+| `src/lib/recording/humanRecordingAlignment.ts` | `scripts/test-human-recording-alignment.ts` | `test:human-recording-alignment` | 2026-11-25 | PASS、tsc PASS（1文ずつのセグメントの場合を固定。複数の文が入ったセグメントは PR #238 で直し、回帰テストを足した） |
 | `src/lib/seo/currentSearchDiscovery.ts` | `scripts/test-current-search-discovery.ts` | `test:current-search-discovery` | 2026-11-25 | PASS、tsc PASS |
 | `src/lib/effects/effectTextLayout.ts` | `scripts/test-effect-text-layout.ts` | `test:effect-text-layout` | 2026-11-25 | PASS、tsc PASS。短い場面転換のきっかけ（例「見当」）や文の一部だけのタイムスタンプは、しきい値（0.12・長さの比 0.55）に届かず捨てられる（今の挙動として固定） |
 | `src/lib/authorFollow.ts` | `scripts/test-author-follow.ts` | `test:author-follow` | 2026-11-25 | PASS、tsc PASS（Supabase は呼び出しを記録するモック） |
@@ -102,3 +102,4 @@
   - 内容: 文字起こしの1つのセグメントに本文の2文以上が入っていると、その中の文がほとんど対応付かない。単語ごとの時刻を渡しても同じ。
   - 再現: 本文 `吾輩は猫である。名前はまだ無い。\n\nどこで生れたかとんと見当がつかぬ。`、セグメント `[0-3秒「吾輩は猫である。名前はまだ無い。」, 3.2-6秒「どこで生れたかとんと見当がつかぬ。」]` → 3文のうち1文だけが対応付き、`human_alignment_insufficient` で止まる（1文ずつのセグメントなら3文とも対応付く）。
   - 影響（推定）: Whisper などの文字起こしは、1つのセグメントに複数の文を入れることが多い。そのため人の朗読の時刻合わせが、実際の録音では失敗しやすい可能性がある。実際の録音・文字起こしでは確かめていない。短い合成の例での観察で、本番の失敗率は分からない。
+  - 直した（PR #238、KD-6）: 対応付けの前に、セグメントを本文と同じ分け方で文に分ける（単語の時刻があればそれで、無ければ文字数の比で時刻を割る）。上の再現例は `scripts/test-human-recording-alignment.ts` の回帰テストになった。実際の録音では未検証。
