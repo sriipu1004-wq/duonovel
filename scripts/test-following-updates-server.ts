@@ -21,6 +21,8 @@ const state = {
   episodeResults: [] as Result[],
   adminCalls: [] as unknown[][],
   workArgs: [] as unknown[],
+  socialCalls: [] as unknown[][],
+  socialResult: { signedIn: true, userId: "user-1", targets: [] } as unknown,
 };
 
 function recordingBuilder(calls: unknown[], result: () => Result) {
@@ -59,6 +61,16 @@ moduleWithLoad._load = function (request, parent, isMain) {
   if (is(request, "supabase/admin")) return { createAdminClient: () => admin };
   if (is(request, "publicWorks")) {
     return { getCachedPublicBaseWorkCards: async (args: unknown) => (state.workArgs.push(args), ["work"]) };
+  }
+  if (is(request, "social/viewerSocialRows.server")) {
+    return {
+      readViewerSocialTargets: async (args: { supabase: unknown; kind: string }) => {
+        state.socialCalls.push([args.supabase === session, args.kind]);
+        const next = state.socialResult;
+        if (next instanceof Error) throw next;
+        return next;
+      },
+    };
   }
   if (is(request, "contentRatingServer")) {
     return { getCurrentR18ViewerPreference: async () => ({ showR18Content: true }) };
@@ -107,27 +119,38 @@ async function main() {
     assert.equal(await captured.loadShowR18(), true);
     assert.equal(await captured.loadRegionMap(), "region-map");
 
-    // Viewer rows: three session reads filtered by the user id.
+    // Viewer rows: bookmarks and play_logs with the session filtered by the
+    // user id; followed authors through viewerSocialRows (KD-2: author_follows
+    // has RLS with no policies, so the session read was always empty).
     state.sessionResults = {
       user_series_bookmarks: { data: [{ user_id: "user-1", series_id: "s-1" }], error: null },
-      author_follows: { data: null, error: null },
       play_logs: { data: [{ user_id: "user-1", series_id: "s-1", episode_number: 1 }], error: null },
+    };
+    state.socialResult = {
+      signedIn: true,
+      userId: "user-1",
+      targets: [{ targetId: "author-9", createdAt: "2026-11-01T00:00:00Z" }],
     };
     assert.deepEqual(await captured.readViewerRows(), {
       bookmarks: [{ user_id: "user-1", series_id: "s-1" }],
-      follows: [],
+      follows: [{ follower_user_id: "user-1", followed_author_id: "author-9" }],
       playLogs: [{ user_id: "user-1", series_id: "s-1", episode_number: 1 }],
     });
     assert.deepEqual(state.sessionCalls, [
       ["user_series_bookmarks", ["select", "user_id, series_id"], ["eq", "user_id", "user-1"]],
-      ["author_follows", ["select", "follower_user_id, followed_author_id"], ["eq", "follower_user_id", "user-1"]],
       ["play_logs", ["select", "user_id, series_id, episode_number"], ["eq", "user_id", "user-1"]],
     ]);
+    assert.deepEqual(state.socialCalls, [[true, "followed-authors"]]);
 
     // A play_logs failure gives null markers; bookmark / follow failures throw.
     state.sessionResults.play_logs = { data: null, error: { message: "denied" } };
     assert.equal(((await captured.readViewerRows()) as { playLogs: unknown }).playLogs, null);
-    state.sessionResults.author_follows = { data: null, error: { message: "nope" } };
+    // The verified viewer must be the user the list is built for.
+    state.socialResult = { signedIn: true, userId: "someone-else", targets: [{ targetId: "a", createdAt: "" }] };
+    await assert.rejects(captured.readViewerRows(), /^Error: author follows: viewer mismatch$/);
+    state.socialResult = { signedIn: false, userId: null, targets: [] };
+    await assert.rejects(captured.readViewerRows(), /^Error: author follows: viewer mismatch$/);
+    state.socialResult = new Error("nope");
     await assert.rejects(captured.readViewerRows(), /^Error: author follows: nope$/);
     state.sessionResults.user_series_bookmarks = { data: null, error: { message: "down" } };
     await assert.rejects(captured.readViewerRows(), /^Error: bookmarks: down$/);

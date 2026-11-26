@@ -81,7 +81,11 @@ async function runFfmpeg(args: string[]): Promise<void> {
   const command = resolveFfmpegCommand();
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, {
+    // The command is the ffmpeg binary (FFMPEG_PATH or ffmpeg-static), not a
+    // project file. Without the ignore comment Turbopack traces the whole
+    // project into this route; the binary is included via
+    // outputFileTracingIncludes in next.config.ts instead.
+    const child = spawn(/* turbopackIgnore: true */ command, args, {
       windowsHide: true,
     });
 

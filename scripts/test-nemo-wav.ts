@@ -86,6 +86,14 @@ assert.throws(
   /nemo_wav_format_mismatch/
 );
 
+// KD-9 regression: 8-bit PCM is unsigned, so pause silence is 128 (not 0).
+const eightBit = concatNemoWavs([
+  { wavBytes: makeWav({ sampleRate: 8, bits: 8, samples: [128, 128] }), pauseAfterMs: 250 },
+  { wavBytes: makeWav({ sampleRate: 8, bits: 8, samples: [200] }), pauseAfterMs: 0 },
+]);
+assert.equal(new DataView(eightBit.buffer).getUint16(34, true), 8);
+assert.deepEqual(Array.from(eightBit.subarray(44)), [128, 128, 128, 128, 200]);
+
 // Downsample: nearest-frame picking; no-op when target >= source or invalid.
 const src = makeWav({ sampleRate: 8, samples: [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000] });
 const half = downsampleNemoWav(src, 4);
@@ -102,4 +110,4 @@ assert.equal(downsampleNemoWav(src, Number.NaN), src);
 const stereo = makeWav({ sampleRate: 4, channels: 2, samples: [1, -1, 2, -2, 3, -3, 4, -4] });
 assert.deepEqual(pcmOf(downsampleNemoWav(stereo, 2)), [1, -1, 3, -3]);
 
-console.log("PASS: Nemo WAV parse, duration, concat with pauses, downsample");
+console.log("PASS: Nemo WAV parse, duration, concat with pauses (16-bit and 8-bit silence), downsample");

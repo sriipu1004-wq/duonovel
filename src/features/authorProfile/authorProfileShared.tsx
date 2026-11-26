@@ -8,9 +8,41 @@ import {
   type SeriesRow as BaseSeriesRow,
 } from "@/features/write/writeShared";
 
-type SupabaseLike = {
-  from: (table: string) => any;
+type QueryResult = {
+  data?: unknown;
+  error: { message: string } | null;
 };
+
+type AwaitableQuery = {
+  then: (
+    onfulfilled: (value: QueryResult) => unknown,
+    onrejected?: (reason: unknown) => unknown
+  ) => unknown;
+};
+
+type FilterQuery = AwaitableQuery & {
+  eq: (column: string, value: unknown) => FilterQuery;
+  in: (column: string, values: readonly unknown[]) => FilterQuery;
+  order: (column: string, options?: { ascending?: boolean }) => FilterQuery;
+  range: (from: number, to: number) => FilterQuery;
+  maybeSingle: () => AwaitableQuery;
+};
+
+type TableQuery = {
+  select: (columns: string) => FilterQuery;
+};
+
+// The real Supabase client is accepted as-is. `from()` stays `unknown` here because
+// structurally comparing the client's generic select/then types against TableQuery
+// can hit TS2589 (excessively deep instantiation); the query shape used below is
+// re-attached in one place instead of leaking `any`.
+type SupabaseLike = {
+  from: (table: string) => unknown;
+};
+
+function fromTable(supabase: SupabaseLike, table: string): TableQuery {
+  return supabase.from(table) as TableQuery;
+}
 
 export type UserRow = Record<string, unknown> & {
   id: string;
@@ -278,8 +310,7 @@ export async function fetchAuthorById(
     return null;
   }
 
-  const { data, error } = await supabase
-    .from("users")
+  const { data, error } = await fromTable(supabase, "users")
     .select("*")
     .eq("id", normalizedAuthorId)
     .maybeSingle();
@@ -302,13 +333,11 @@ export async function fetchSeriesByAuthorId(
   }
 
   const [byAuthorId, byUserId] = await Promise.all([
-    supabase
-      .from("series")
+    fromTable(supabase, "series")
       .select("*")
       .eq("author_id", normalizedAuthorId)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("series")
+    fromTable(supabase, "series")
       .select("*")
       .eq("user_id", normalizedAuthorId)
       .order("created_at", { ascending: false }),
@@ -360,8 +389,7 @@ export async function fetchEpisodesBySeriesIds(
   const episodes: EpisodeRow[] = [];
 
   for (let start = 0; ; start += PAGE_SIZE) {
-    const result = await supabase
-      .from("episodes")
+    const result = await fromTable(supabase, "episodes")
       .select("*")
       .in("series_id", seriesIds)
       .order("series_id", { ascending: true })

@@ -2,18 +2,52 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { validateManifest } from "./public-domain/core";
 
-function load(path: string): any {
-  return JSON.parse(readFileSync(resolve(process.cwd(), path), "utf8"));
+type ClassificationRow = {
+  series_id: string;
+  classification: string;
+  permission_change_eligible: boolean;
+  manifest_candidate: string | null;
+  repartition_eligible: boolean;
+  source_provenance: { status: string };
+  production_state: { oversized_episode_count: number };
+};
+
+type Classification = {
+  summary: Record<string, number>;
+  works: ClassificationRow[];
+};
+
+type ProvenanceCandidate = {
+  work_id: string;
+  source_confirmed?: boolean;
+  raw_source_sha256?: string;
+};
+
+type Provenance = {
+  summary: { legacy_series: number };
+  series: Array<{
+    series_id: string;
+    works: Array<{ candidates?: ProvenanceCandidate[] }>;
+  }>;
+};
+
+type DuplicateAudit = { matches: unknown[] };
+
+type Fingerprints = { legacy_count: number; body_included: boolean };
+
+// Type-only annotation of the parsed audit JSON; no runtime validation is added here.
+function load<T>(path: string): T {
+  return JSON.parse(readFileSync(resolve(process.cwd(), path), "utf8")) as T;
 }
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-const classification = load("public-domain/audits/legacy-official-rights-classification-2026-09-25.json");
-const provenance = load("public-domain/audits/legacy-official-provenance-recovery-2026-09-25.json");
-const duplicates = load("public-domain/audits/legacy-official-duplicate-audit-2026-09-25.json");
-const fingerprints = load("public-domain/audits/legacy-official-production-fingerprints-2026-09-25.json");
+const classification = load<Classification>("public-domain/audits/legacy-official-rights-classification-2026-09-25.json");
+const provenance = load<Provenance>("public-domain/audits/legacy-official-provenance-recovery-2026-09-25.json");
+const duplicates = load<DuplicateAudit>("public-domain/audits/legacy-official-duplicate-audit-2026-09-25.json");
+const fingerprints = load<Fingerprints>("public-domain/audits/legacy-official-production-fingerprints-2026-09-25.json");
 
 assert(classification.summary.total === 37, "classification total must remain 37");
 assert(classification.works.length === 37, "classification work rows must remain 37");
@@ -22,16 +56,16 @@ assert(fingerprints.body_included === false, "fingerprint snapshot must not cont
 assert(duplicates.matches.length === 0, "legacy/current duplicate matches must remain explicitly reviewed");
 assert(provenance.summary.legacy_series === 37, "provenance legacy count must remain 37");
 
-const approved = classification.works.filter((row: any) => row.classification === "CURRENT_PD_APPROVED");
-const unapproved = classification.works.filter((row: any) => row.classification !== "CURRENT_PD_APPROVED");
+const approved = classification.works.filter((row) => row.classification === "CURRENT_PD_APPROVED");
+const unapproved = classification.works.filter((row) => row.classification !== "CURRENT_PD_APPROVED");
 assert(approved.length === classification.summary.CURRENT_PD_APPROVED, "approved summary mismatch");
-assert(unapproved.every((row: any) => row.permission_change_eligible === false), "unapproved work must never be permission-change eligible");
-assert(unapproved.every((row: any) => row.manifest_candidate === null), "unapproved work must not have a migration manifest");
+assert(unapproved.every((row) => row.permission_change_eligible === false), "unapproved work must never be permission-change eligible");
+assert(unapproved.every((row) => row.manifest_candidate === null), "unapproved work must not have a migration manifest");
 
 for (const row of approved) {
   assert(row.permission_change_eligible === true, "approved work must explicitly opt into permission change");
   assert(typeof row.manifest_candidate === "string", "approved work requires manifest candidate");
-  const manifest = load("public-domain/manifests/" + row.manifest_candidate + ".json");
+  const manifest = load<unknown>("public-domain/manifests/" + row.manifest_candidate + ".json");
   const validation = validateManifest(manifest);
   assert(validation.ok && validation.manifest, "approved manifest must validate: " + row.manifest_candidate);
   assert(validation.manifest.approved === true, "approved manifest flag required");
@@ -39,10 +73,11 @@ for (const row of approved) {
   for (const code of ["JP", "US", "KR"]) {
     assert(validation.manifest.jurisdictions_reviewed.includes(code), "approved manifest missing jurisdiction " + code);
   }
-  const series = provenance.series.find((item: any) => item.series_id === row.series_id);
+  const series = provenance.series.find((item) => item.series_id === row.series_id);
   assert(series, "approved series missing provenance row");
-  const source = series.works.flatMap((work: any) => work.candidates ?? []).find((candidate: any) =>
-    candidate.work_id === row.manifest_candidate.replace(/^aozora-/, "")
+  const manifestCandidate = row.manifest_candidate;
+  const source = series.works.flatMap((work) => work.candidates ?? []).find((candidate) =>
+    candidate.work_id === manifestCandidate.replace(/^aozora-/, "")
   );
   assert(source?.source_confirmed === true, "approved manifest requires cryptographically confirmed source");
   assert(source.raw_source_sha256 === validation.manifest.source_hash, "approved manifest source hash must equal recovered provider bytes");
