@@ -13,12 +13,11 @@
 -- are not yet in the migrations (outside this change).
 
 --
--- Each statement takes a brief ACCESS EXCLUSIVE lock on its table. The file
--- runs in one explicit transaction (as other migrations here do) so that
--- `set local lock_timeout` applies to it: if a lock cannot be taken within
--- 3s the whole migration fails and rolls back instead of queueing traffic.
-
-begin;
+-- Each statement takes a brief ACCESS EXCLUSIVE lock on its table. Supabase
+-- runs each migration inside a transaction (CLI and apply_migration), so no
+-- begin/commit here; `set local lock_timeout` applies to that transaction:
+-- if a lock cannot be taken within 3s the migration fails and rolls back
+-- instead of queueing traffic.
 
 set local lock_timeout = '3s';
 
@@ -27,5 +26,3 @@ alter table public.author_profile_likes enable row level security;
 alter table public.reader_card_likes enable row level security;
 alter table public.bgm_library_favorites enable row level security;
 alter table public.nemo_generation_queue enable row level security;
-
-commit;
