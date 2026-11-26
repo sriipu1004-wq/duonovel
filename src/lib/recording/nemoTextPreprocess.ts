@@ -13,9 +13,30 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Private-use characters used as sentence-boundary markers while converting
+// a whole paragraph (see convertNemoSentencesToSpoken).
+const BOUNDARY_MARKER_BASE = 0xe000;
+const BOUNDARY_MARKER_LIMIT = 0xf8ff;
+const BOUNDARY_MARKER_CLASS = "[\uE000-\uF8FF]";
+const BOUNDARY_MARKER_PATTERN = /[\uE000-\uF8FF]/u;
+
+function buildDictionarySourcePattern(source: string, allowBoundaryMarkers: boolean): RegExp {
+  if (!allowBoundaryMarkers) {
+    return new RegExp(escapeRegExp(source), "g");
+  }
+
+  // A dictionary entry may span a sentence boundary: allow a marker between
+  // any two characters. The marker is consumed, so the two sentences merge.
+  return new RegExp(
+    Array.from(source).map(escapeRegExp).join(`${BOUNDARY_MARKER_CLASS}?`),
+    "gu"
+  );
+}
+
 function applyPronunciationDictionary(
   text: string,
-  pronunciationDictionary: NemoPronunciationDictionary
+  pronunciationDictionary: NemoPronunciationDictionary,
+  allowBoundaryMarkers = false
 ): string {
   const entries = Object.entries(pronunciationDictionary)
     .filter(([source, target]) => source.trim().length > 0 && target.trim().length > 0)
@@ -24,7 +45,7 @@ function applyPronunciationDictionary(
   let next = text;
 
   for (const [source, target] of entries) {
-    next = next.replace(new RegExp(escapeRegExp(source), "g"), target);
+    next = next.replace(buildDictionarySourcePattern(source, allowBoundaryMarkers), target);
   }
 
   return next;
@@ -165,34 +186,118 @@ function joinLinesWithinParagraph(lines: string[]): string {
   return result.trim();
 }
 
-function normalizePauseExpressionSurface(text: string): string {
-  return text
+function normalizePauseExpressionSurface(
+  text: string,
+  allowBoundaryMarkers = false
+): string {
+  const replaced = text
     .replace(/\.{3,}/g, "……")
     .replace(/[⋯]{2,}/gu, "……")
     .replace(/…{3,}/gu, "……")
-    .replace(/[―—─]{2,}/gu, "――")
-    .replace(/([」』）】])(?=[^\s、。！？!?…」』）】])/gu, "$1、");
+    .replace(/[―—─]{2,}/gu, "――");
+
+  // A sentence boundary after 」 already gives a pause; do not add 、 there.
+  return allowBoundaryMarkers
+    ? replaced.replace(/([」』）】])(?=[^\s、。！？!?…」』）】\uE000-\uF8FF])/gu, "$1、")
+    : replaced.replace(/([」』）】])(?=[^\s、。！？!?…」』）】])/gu, "$1、");
 }
 
-/**
- * Converts one piece of already line-joined original text (a paragraph or a
- * single sentence) into the text sent to TTS: ruby -> reading, pronunciation
- * dictionary, classical kana, pause-expression surface.
- */
-export function convertNemoTextToSpoken(
+function convertToSpoken(
   text: string,
-  options: NemoPreprocessOptions = {}
+  options: NemoPreprocessOptions,
+  allowBoundaryMarkers: boolean
 ): string {
   const rubyResolved = replaceRubySurfaceWithReading(text);
 
   const dictionaryApplied = applyPronunciationDictionary(
     rubyResolved,
-    options.pronunciationDictionary ?? {}
+    options.pronunciationDictionary ?? {},
+    allowBoundaryMarkers
   );
 
   const normalizedClassical = normalizeClassicalJapanese(dictionaryApplied);
 
-  return normalizePauseExpressionSurface(normalizedClassical).trim();
+  return normalizePauseExpressionSurface(normalizedClassical, allowBoundaryMarkers);
+}
+
+/**
+ * Converts one piece of already line-joined original text (a paragraph) into
+ * the text sent to TTS: ruby -> reading, pronunciation dictionary, classical
+ * kana, pause-expression surface.
+ */
+export function convertNemoTextToSpoken(
+  text: string,
+  options: NemoPreprocessOptions = {}
+): string {
+  return convertToSpoken(text, options, false).trim();
+}
+
+export type NemoSpokenSentenceGroup = {
+  /** Original sentences joined (more than one only when a ruby or dictionary entry spans them). */
+  originalText: string;
+  /** Number of original sentences in this group (1 unless merged). */
+  originalSentenceCount: number;
+  spokenText: string;
+};
+
+/**
+ * KD-9: converts the original sentences of one paragraph to spoken text,
+ * keeping a 1:1 original/spoken pairing. The whole paragraph is converted at
+ * once with a private-use marker between sentences, so ruby and dictionary
+ * entries that span a sentence boundary still apply; where such an entry
+ * consumes a marker, the neighbouring original sentences are merged into one
+ * group instead of being duplicated or misaligned.
+ */
+export function convertNemoSentencesToSpoken(
+  sentences: string[],
+  options: NemoPreprocessOptions = {}
+): NemoSpokenSentenceGroup[] {
+  const markerCount = sentences.length - 1;
+  const canUseMarkers =
+    markerCount <= BOUNDARY_MARKER_LIMIT - BOUNDARY_MARKER_BASE + 1 &&
+    sentences.every((sentence) => !BOUNDARY_MARKER_PATTERN.test(sentence));
+
+  if (!canUseMarkers) {
+    return sentences.map((sentence) => ({
+      originalText: sentence,
+      originalSentenceCount: 1,
+      spokenText: convertToSpoken(sentence, options, false).trim(),
+    }));
+  }
+
+  const joined = sentences
+    .map((sentence, index) =>
+      index === 0 ? sentence : `${String.fromCharCode(BOUNDARY_MARKER_BASE + index - 1)}${sentence}`
+    )
+    .join("");
+  const spoken = convertToSpoken(joined, options, true);
+
+  const groups: NemoSpokenSentenceGroup[] = [];
+  let currentSpoken = "";
+  let groupStart = 0;
+
+  const flush = (endExclusive: number) => {
+    groups.push({
+      originalText: sentences.slice(groupStart, endExclusive).join(""),
+      originalSentenceCount: endExclusive - groupStart,
+      spokenText: currentSpoken.trim(),
+    });
+  };
+
+  for (const character of spoken) {
+    const code = character.charCodeAt(0);
+    if (code >= BOUNDARY_MARKER_BASE && code <= BOUNDARY_MARKER_LIMIT) {
+      const nextSentenceIndex = code - BOUNDARY_MARKER_BASE + 1;
+      flush(nextSentenceIndex);
+      currentSpoken = "";
+      groupStart = nextSentenceIndex;
+      continue;
+    }
+    currentSpoken += character;
+  }
+  flush(sentences.length);
+
+  return groups;
 }
 
 export function preprocessNemoBodyToParagraphs(

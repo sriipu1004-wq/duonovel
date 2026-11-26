@@ -68,6 +68,26 @@ assert.deepEqual(
   ["アクメに行った。"]
 );
 
+// A dictionary entry that spans a sentence boundary still applies; the two
+// original sentences become one chunk group, and the next sentence index
+// skips both so it stays aligned with the Reader's sentence numbering.
+assert.deepEqual(
+  buildNemoChunks("「はい」と言った。次へ。", { pronunciationDictionary: { "「はい」と": "「はい」って" } }).map(
+    (chunk) => [chunk.text, chunk.sourceSentenceIndex, chunk.sourceSentenceText]
+  ),
+  [
+    ["「はい」、って言った。", 0, "「はい」と言った。"],
+    ["次へ。", 2, "次へ。"],
+  ]
+);
+
+// A ruby whose base text spans a sentence boundary (…… splits sentences) still
+// resolves to its reading.
+assert.deepEqual(
+  buildNemoChunks("｜嗚呼……無情《ああむじょう》だ。").map((chunk) => [chunk.text, chunk.sourceSentenceIndex]),
+  [["ああむじょうだ。", 0]]
+);
+
 assert.deepEqual(buildNemoChunks(""), []);
 
 console.log("PASS: Nemo chunking (1:1 original/spoken sentences, no duplicated text, pauses)");
