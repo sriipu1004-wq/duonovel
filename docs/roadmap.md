@@ -414,7 +414,8 @@ Owner instruction 2026-11-26 「今わかる問題を優先順位に統合。優
 
 **Status 2026-11-26 (batch approval 「kdnowからkdlaterまで着手して」):**
 - Done (merged): KD-1 (code was already in #196; tests #237), KD-2 (#240; the RLS-enable migration #244 stays open), KD-3 (#239, save keeps operator keys; the trigger migration #243 stays open), KD-6 (#238), KD-9 (#242), KD-10/12/13 code parts (#241), KD-11 (#245, except #230 which stays the owner's "no change"), KD-8 (#248, lint errors 27→13; the remaining 13 are set-state-in-effect and need behaviour review).
-- Open, not merged: KD-4 (#247, visibility boundary; review found it mergeable with one S2 on the client scan), KD-5 (#246, Next 16.4.6; S2: Content-Length is dropped from route responses, so private-audio seeking must be checked on a signed-in Preview first).
+- After the batch (owner buttons 2026-11-26): KD-4 merged (#247, e4db3da; remaining known gap: three bookmark components show less for restricted works in allowed countries), KD-5 merged (#246, 272374a; Next 16.4.6, Accept-Ranges kept; signed-in seek check on Safari/iOS not yet done), migrations #244 (f7694bc) and #243 (6c3335d) merged and applied to production; author removal of publicDomain is rejected (42501), checked in a rolled-back transaction.
+- KD-7: read-only US rights research done (157 country-limited works: 70 US-PD candidates, of which 14 low revision risk; 86 likely protected). Changing allow lists needs a separate owner decision.
 - Skipped: KD-7 (needs rights review and production allow-list changes), KD-12 table removal (production DB).
 - Not verified: signed-in behaviour in production (saved-search lists), KD-1 on a real device.
 
