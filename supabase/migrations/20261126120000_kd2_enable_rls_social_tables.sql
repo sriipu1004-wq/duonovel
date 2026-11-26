@@ -12,8 +12,20 @@
 -- with the service role); bgm_library_favorites has own-row policies that
 -- are not yet in the migrations (outside this change).
 
+--
+-- Each statement takes a brief ACCESS EXCLUSIVE lock on its table. The file
+-- runs in one explicit transaction (as other migrations here do) so that
+-- `set local lock_timeout` applies to it: if a lock cannot be taken within
+-- 3s the whole migration fails and rolls back instead of queueing traffic.
+
+begin;
+
+set local lock_timeout = '3s';
+
 alter table public.author_follows enable row level security;
 alter table public.author_profile_likes enable row level security;
 alter table public.reader_card_likes enable row level security;
 alter table public.bgm_library_favorites enable row level security;
 alter table public.nemo_generation_queue enable row level security;
+
+commit;

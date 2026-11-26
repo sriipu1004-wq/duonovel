@@ -34,9 +34,14 @@ for (const table of TABLES) {
     `${table}: RLS enabled`
   );
 }
-// Only the five statements: no policy, grant, revoke, drop or disable.
-const statements = migration.split(";").map((part) => part.trim()).filter(Boolean);
-assert.equal(statements.length, TABLES.length, "exactly one statement per table");
+// One transaction with a lock timeout first (each statement takes a brief
+// ACCESS EXCLUSIVE lock), then only the five statements: no policy, grant,
+// revoke, drop or disable.
+const statements = migration.split(";").map((part) => part.trim().toLowerCase()).filter(Boolean);
+assert.equal(statements[0], "begin", "explicit transaction");
+assert.equal(statements[1], "set local lock_timeout = '3s'", "lock timeout before any alter");
+assert.equal(statements[statements.length - 1], "commit", "commit at the end");
+assert.equal(statements.length, TABLES.length + 3, "exactly one statement per table");
 assert.doesNotMatch(migration, /\b(create|drop|alter)\s+policy\b/i, "no policy change");
 assert.doesNotMatch(migration, /\b(grant|revoke)\b/i, "no grant change");
 assert.doesNotMatch(migration, /\bdisable\s+row\s+level\s+security\b/i, "never disables RLS");
