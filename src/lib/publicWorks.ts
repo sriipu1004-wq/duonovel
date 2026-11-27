@@ -43,6 +43,12 @@ import { readPublicDomainMetadata } from "@/lib/publicDomainMetadata";
 import { readLegacyAttribution, resolveOriginalAuthorName } from "@/lib/legacyAttribution";
 import { isOfficialAuthorAccountForGrant } from "@/lib/auth/officialAuthorGrant.server";
 import { isSchemaCompatibilityReadFailure } from "@/lib/reliability/readOnly";
+import {
+  fetchFreshPublicCatalogProjection,
+  loadFreshlyReconciledPublicCards,
+} from "@/lib/publicCatalogFreshProjection";
+
+export { fetchFreshPublicCatalogProjection };
 
 export type PublicBaseWorkCard = {
   seriesId: string;
@@ -590,7 +596,13 @@ export async function getCachedPublicBaseWorkCards(options?: {
   ignorePublicSearchLanguageFilter?: boolean;
   prioritizeForUiLocale?: boolean;
 }): Promise<PublicBaseWorkCard[]> {
-  const cards = await getCachedPublicBaseWorkCardsInternal();
+  // Issue #137 PR-F: the cached cards are reconciled against an uncached
+  // publication/rating projection before ANY visibility branch (including
+  // "all" and "general"). A failure rejects; stale cards are never returned.
+  const cards = await loadFreshlyReconciledPublicCards(
+    getCachedPublicBaseWorkCardsInternal,
+    fetchFreshPublicCatalogProjection
+  );
   const visibility = options?.visibility ?? "viewer";
 
   if (visibility === "all") return cards;
